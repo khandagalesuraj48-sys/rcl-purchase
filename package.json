@@ -1,0 +1,13 @@
+{
+  "name": "rcl-purchase",
+  "version": "1.0.0",
+  "private": true,
+  "description": "RCL ERP \u2013 Purchase module (the Purchase Department): signs in through the Portal; one database for every site (each row carries its site).",
+  "scripts": {
+    "dev": "node dev.js",
+    "test": "node --test test/unit.test.js"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}

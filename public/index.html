@@ -1,0 +1,434 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Purchase – RCL ERP</title>
+<link rel="icon" href="favicon.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;700&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  /* RCL ERP – PURCHASE (the Purchase Department, 30-10-2026). The same family as Mechanical, the Store and Engineering: a dark menu on
+     the left (Change site at its top, the pages, the other modules of this site), a white top bar, white panels, the amber button. */
+  :root { --steel: #22303A; --steel-2: #2E3F4B; --hivis: #F2B705; --page: #EDF0F2; --panel: #fff; --line: #D3D9DE; --ink: #1C252C; --muted: #5E6B75;
+    --bad: #B3261E; --good: #2E7D32; --warn: #B45309; --more: #6D28D9; --blue: #1D55E2; --road: #3A434B; --verge: #E5DCC8;
+    --ui: 'IBM Plex Sans', 'Segoe UI', Roboto, Arial, sans-serif; --display: 'Barlow Condensed', 'Arial Narrow', Arial, sans-serif; }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; background: var(--page); color: var(--ink); font: 15px/1.45 var(--ui); }
+  body { overflow-x: hidden; }
+  [hidden] { display: none !important; }
+  button, input, select, textarea { font: inherit; }
+  .btn { display: inline-flex; align-items: center; justify-content: center; gap: 6px; min-height: 40px; padding: 8px 16px; border-radius: 8px; border: 1px solid var(--line); background: #fff; color: var(--ink); cursor: pointer; font-weight: 600; }
+  .btn.primary { background: var(--hivis); border-color: #D99A00; color: #1C1300; }
+  .btn.small { min-height: 34px; padding: 5px 12px; font-size: 14px; }
+  .btn.bad { color: var(--bad); border-color: #E7B4B0; }
+  .btn.on { background: var(--steel); color: #fff; border-color: var(--steel); }
+  .btn:disabled { opacity: .6; cursor: default; }
+  .btn:focus-visible, input:focus-visible, select:focus-visible, a:focus-visible, button:focus-visible, textarea:focus-visible { outline: 2px solid var(--blue); outline-offset: 2px; }
+  input, select, textarea { min-height: 40px; padding: 7px 10px; border: 1px solid #B8C0CC; border-radius: 8px; background: #fff; color: var(--ink); width: 100%; }
+  textarea { min-height: 64px; resize: vertical; }
+  input[type=checkbox], input[type=radio] { width: auto; min-height: 0; }
+  .link { background: none; border: 0; padding: 0; color: var(--blue); cursor: pointer; font-weight: 600; }
+  .link.del { color: var(--bad); }
+  .muted { color: var(--muted); }
+  /* ---- the dark menu ---- */
+  .app { display: flex; min-height: 100vh; }
+  .side { position: sticky; top: 0; height: 100vh; flex: 0 0 236px; width: 236px; background: var(--steel); color: #C9D3D9; display: flex; flex-direction: column; z-index: 20; }
+  .brandbox { padding: 12px 12px 10px; border-bottom: 1px solid rgba(255,255,255,.08); display: flex; flex-direction: column; gap: 6px; }
+  .brandtile { background: #fff; border-radius: 8px; padding: 8px 10px; box-shadow: 0 1px 3px rgba(0,0,0,.3); }
+  .rlogo { position: relative; overflow: hidden; display: block; aspect-ratio: 3.724; width: 100%; }
+  .rlogo img { position: absolute; max-width: none; width: 209.2%; left: -54.8%; top: -227.8%; height: auto; }
+  .rlogo .fb { display: none; } .rlogo.noimg img { display: none; }
+  .rlogo.noimg .fb { display: grid; place-content: center; position: absolute; inset: 0; font: 700 26px var(--display); color: #B3261E; }
+  .brandsub { font-size: 11px; font-weight: 600; letter-spacing: .14em; text-transform: uppercase; color: #93A3AE; text-align: center; }
+  .brandsub small { display: block; letter-spacing: .06em; font-weight: 500; color: #6E808C; text-transform: none; font-size: 11px; }
+  .sitebox { padding: 10px 8px 2px; }
+  .site-chg { appearance: none; width: 100%; display: flex; align-items: center; gap: 10px; padding: 8px 10px; border-radius: 8px; border: 1px solid rgba(242,183,5,.45); background: rgba(242,183,5,.10); color: #fff; cursor: pointer; text-align: left; }
+  .site-chg:hover { background: rgba(242,183,5,.2); }
+  .site-chg svg { flex: 0 0 18px; width: 18px; height: 18px; color: var(--hivis); }
+  .site-chg span { min-width: 0; flex: 1; line-height: 1.2; }
+  .site-chg small { display: block; font-size: 11px; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; color: #F2C94C; }
+  .site-chg b { display: block; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .side nav { flex: 1; overflow-y: auto; padding: 10px 8px; display: flex; flex-direction: column; gap: 2px; }
+  .grp { margin-top: 6px; padding-top: 6px; border-top: 1px solid rgba(255,255,255,.07); }
+  .grp:first-child { margin-top: 0; padding-top: 0; border-top: 0; }
+  .grphead { appearance: none; border: 0; background: transparent; color: #E6ECEF; cursor: pointer; width: 100%; display: flex; align-items: center; gap: 12px; height: 38px; padding: 0 12px; border-radius: 6px; font: 600 13px var(--ui); letter-spacing: .04em; text-align: left; }
+  .grphead svg { flex: 0 0 18px; width: 18px; height: 18px; }
+  .grphead .chev { margin-left: auto; width: 16px; height: 16px; flex-basis: 16px; transition: transform .2s; opacity: .7; }
+  .grp:not(.open) .chev { transform: rotate(-90deg); }
+  .grp:not(.open) .items { display: none; }
+  .grphead:hover { background: var(--steel-2); }
+  .items { padding-left: 8px; }
+  .items .navbtn { height: 36px; font-size: 14px; }
+  .items .note { color: #93A3AE; font-size: 12.5px; padding: 6px 12px; }
+  .items .note.cap { color: #F2B705; font-size: 10.5px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; padding: 8px 12px 2px; }
+  .navbtn { appearance: none; border: 0; background: transparent; color: #C9D3D9; cursor: pointer; width: 100%; display: flex; align-items: center; gap: 12px; height: 40px; padding: 0 12px; border-radius: 6px; text-align: left; font-weight: 500; }
+  .navbtn svg { flex: 0 0 18px; width: 18px; height: 18px; }
+  .navbtn:hover { background: var(--steel-2); color: #fff; }
+  .navbtn[aria-current="page"] { background: rgba(242,183,5,.14); color: #fff; box-shadow: inset 3px 0 0 var(--hivis); }
+  .navbtn[aria-current="page"] svg { color: var(--hivis); }
+  /* ---- the page ---- */
+  .main { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+  .topbar { position: sticky; top: 0; z-index: 10; background: #fff; border-bottom: 1px solid var(--line); display: flex; align-items: center; gap: 12px; padding: 10px 18px; }
+  .topbar h1 { margin: 0; font: 700 24px var(--display); letter-spacing: .01em; }
+  .topbar .crumb { font-size: 12px; color: var(--muted); }
+  .topbar .who { margin-left: auto; text-align: right; line-height: 1.2; }
+  .topbar .who b { display: block; } .topbar .who small { color: var(--muted); }
+  .menu-btn { display: none; }
+  main { padding: 18px; max-width: 1400px; width: 100%; }
+  .panel { background: #fff; border: 1px solid var(--line); border-radius: 12px; padding: 16px 18px; margin-bottom: 16px; }
+  .panel h2 { margin: 0 0 4px; font: 700 22px var(--display); letter-spacing: .01em; }
+  .panel h3 { margin: 12px 0 6px; font-size: 16px; }
+  .bar { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 10px; margin: 12px 0; }
+  .bar .field { margin: 0; min-width: 150px; flex: 0 1 200px; }
+  .bar .grow { flex: 1 1 260px; }
+  .field { display: flex; flex-direction: column; gap: 4px; margin-bottom: 10px; }
+  .field label, .lbl { font-size: 13px; font-weight: 600; color: var(--muted); }
+  .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 10px 14px; }
+  .grid .wide { grid-column: span 2; }
+  .tw { overflow-x: auto; border: 1px solid var(--line); border-radius: 10px; }
+  table { border-collapse: collapse; width: 100%; font-size: 14px; }
+  th, td { text-align: left; padding: 8px 10px; border-bottom: 1px solid var(--line); vertical-align: middle; white-space: nowrap; }
+  th { background: #F6F8FB; font-size: 12.5px; color: var(--muted); text-transform: uppercase; letter-spacing: .04em; }
+  td.n, th.n { text-align: right; }
+  td.nm { white-space: normal; min-width: 180px; font-weight: 600; }
+  td.wrap { white-space: normal; min-width: 200px; }
+  td small { display: block; color: var(--muted); font-weight: 400; }
+  tr.off td { opacity: .55; }
+  tr.ver td { background: #FAFBFC; font-size: 13.5px; }
+  .acts { display: flex; gap: 12px; flex-wrap: wrap; }
+  .tag { display: inline-block; padding: 2px 8px; border-radius: 999px; font-size: 12px; font-weight: 600; background: #E8F5E9; color: var(--good); }
+  .tag.off { background: #EEF0F2; color: var(--muted); } .tag.warn { background: #FFF3CD; color: #8A6100; } .tag.bad { background: #FDECEA; color: var(--bad); } .tag.more { background: #EDE7F6; color: var(--more); } .tag.blue { background: #E8EEFC; color: var(--blue); }
+  .chip { display: inline-flex; align-items: center; gap: 4px; padding: 3px 10px; border-radius: 999px; border: 1px solid var(--line); font-size: 13px; background: #fff; margin: 2px 4px 2px 0; }
+  .sidebadge { display: inline-block; border: 1px solid #B8C0CC; border-radius: 6px; padding: 0 6px; font-size: 12px; font-weight: 700; color: #3B4650; margin: 0 2px; }
+  .empty { text-align: center; color: var(--muted); padding: 22px; }
+  .errbox { background: #FDECEA; color: var(--bad); border-radius: 8px; padding: 10px 12px; font-size: 14px; margin: 10px 0; }
+  /* tiles */
+  .tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 14px; margin: 6px 0 16px; }
+  .tile { background: #fff; border: 1px solid var(--line); border-radius: 12px; padding: 14px 16px; position: relative; }
+  .tile small { display: block; color: var(--muted); font-weight: 600; font-size: 13px; }
+  .tile b { font: 700 36px var(--display); } .tile b + i { font-style: normal; color: var(--muted); margin-left: 4px; }
+  .tile span { display: block; color: var(--muted); font-size: 13px; }
+  .tile svg.ring { position: absolute; right: 14px; top: 14px; }
+  /* dialog, toast, the start */
+  .dlg-back { position: fixed; inset: 0; background: rgba(20,30,38,.45); display: grid; place-items: center; z-index: 50; padding: 16px; }
+  .dlg { background: #fff; border-radius: 12px; max-width: 640px; width: 100%; padding: 18px 20px; box-shadow: 0 18px 40px rgba(0,0,0,.25); max-height: 90vh; overflow: auto; }
+  .dlg.wide { max-width: 980px; }
+  .dlg h3 { margin: 0 0 8px; font-size: 18px; }
+  .dlg .mr { color: var(--muted); font-size: 14px; }
+  .dlg .btns { display: flex; flex-wrap: wrap; gap: 10px; justify-content: flex-end; margin-top: 14px; }
+  .dlg pre { white-space: pre-wrap; background: #F6F8FB; border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; font: 14px/1.45 var(--ui); }
+  #toast { position: fixed; left: 50%; bottom: 20px; transform: translateX(-50%); background: #1F2B34; color: #fff; padding: 10px 18px; border-radius: 10px; max-width: calc(100% - 32px); z-index: 60; }
+  #toast.bad { background: var(--bad); }
+  .start { min-height: 100vh; display: grid; place-items: center; padding: 16px; }
+  .start .card { background: #fff; border: 1px solid var(--line); border-radius: 12px; padding: 24px; max-width: 460px; width: 100%; text-align: center; }
+  @media (max-width: 860px) {
+    .side { position: fixed; left: 0; top: 0; transform: translateX(-100%); transition: transform .2s; box-shadow: 0 0 30px rgba(0,0,0,.3); }
+    .side.open { transform: none; }
+    .menu-btn { display: inline-flex; }
+    .topbar { padding: 8px 12px; } .topbar h1 { font-size: 21px; } .topbar .who small { display: none; }
+    main { padding: 12px; }
+    .grid .wide, .lgrid .wide { grid-column: auto; }
+    .bar .field { flex: 1 1 100%; }
+    .bigdate { font-size: 28px; }
+    .lrow { grid-template-columns: 1fr; gap: 4px; } .lrow .r { text-align: left; }
+    .rows .r, .rows .r.l3 { grid-template-columns: 1fr 1fr; }
+  }
+  @media print { .side, .topbar, .noprint { display: none !important; } main { padding: 0; max-width: none; } .panel { break-inside: avoid; border: 0; } }
+  /* INSIDE ANOTHER MODULE'S SCREEN (Mechanical shows this page in its middle part – its own menu, top bar and Logout are there) */
+  html.embed, html.embed body { background: transparent; }
+  html.embed .side, html.embed .topbar { display: none !important; }
+  html.embed .app { min-height: 0; }
+  html.embed main { max-width: none; padding: 2px 2px 24px; }
+  html.embed .start { min-height: 50vh; }
+</style>
+</style>
+</head>
+<body>
+<section class="start" id="v_start"><div class="card"><h2 style="margin:0 0 6px">Purchase</h2><p id="st_msg">Signing in…</p><p class="mr muted" id="st_mr"></p>
+  <p id="st_go" hidden><a class="btn primary" id="st_link" href="#">Open the Portal</a></p></div></section>
+
+<div class="app" id="v_app" hidden>
+  <aside class="side" id="side">
+    <div class="brandbox">
+      <div class="brandtile"><span class="rlogo"><img src="https://i.ibb.co/CpSfBqXX/RCL-LOGO-PDF.png" alt="Rachana Construction Limited" onerror="this.parentNode.classList.add('noimg')"><span class="fb">Rachana</span></span></div>
+      <div class="brandsub">Purchase<small>by One Click Solution</small></div>
+    </div>
+    <div class="sitebox"><button type="button" class="site-chg" id="site_chg" title="Change site – open another of your sites" aria-haspopup="dialog">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M16 3h5v5"/><path d="M21 3l-7 7"/><path d="M8 21H3v-5"/><path d="M3 21l7-7"/></svg>
+      <span><small>Change site</small><b id="site_name"></b></span></button></div>
+    <nav aria-label="Modules" id="nav">
+      <div class="grp open" id="grp_pur">
+        <button type="button" class="grphead" aria-expanded="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="9" cy="20" r="1.5"/><circle cx="18" cy="20" r="1.5"/><path d="M2 3h3l2.7 12.4a2 2 0 0 0 2 1.6h8.6a2 2 0 0 0 2-1.6L22 7H6"/></svg>Purchase<svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg></button>
+        <div class="items" id="pur_pages"></div>
+      </div>
+      <div id="mods"></div>
+    </nav>
+  </aside>
+  <div class="main">
+    <header class="topbar">
+      <button type="button" class="btn small menu-btn" id="menu_btn" aria-label="Open menu">☰</button>
+      <div><div class="crumb">Purchase /</div><h1 id="pg_title">Dashboard</h1></div>
+      <div class="who"><b id="u_name"></b><small id="u_role"></small></div>
+      <button type="button" class="btn small" id="u_logout">Logout</button>
+    </header>
+    <main>
+      <!-- DASHBOARD: the Purchase Department, its sites -->
+      <div id="pg_dashboard" hidden>
+        <section class="panel"><h2>Purchase Department</h2><p class="muted" style="margin:0 0 4px">One Purchase for every site – the sites of today and every new one. <span class="mr">सर्व sites साठी एकच खरेदी विभाग.</span></p>
+          <div id="db_body"></div></section>
+      </div>
+    </main>
+  </div>
+</div>
+<div class="dlg-back" id="dlg" hidden><div class="dlg" id="dlg_box" role="dialog" aria-modal="true" aria-labelledby="dlg_t"><h3 id="dlg_t"></h3><div id="dlg_b"></div><div class="btns" id="dlg_btns"></div></div></div>
+<div id="toast" role="status" hidden></div>
+
+<script>
+(function () {
+  'use strict';
+  const $ = id => document.getElementById(id);
+  const esc = s => String(s === undefined || s === null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+  const S = { me: null, page: '' };
+  function toast(t, bad) { const e = $('toast'); e.textContent = t; e.className = bad ? 'bad' : ''; e.hidden = false; clearTimeout(toast.t); toast.t = setTimeout(() => { e.hidden = true; }, bad ? 7000 : 3500); }
+  // every address of this page is RELATIVE to where it is (it is also served under the main address: <main>/purchase/)
+  const BASE = location.pathname.endsWith('/') ? location.pathname : location.pathname + '/';
+  const EMBED = /[?&]embed=1(&|$)/.test(location.search) && (() => { try { return window.parent !== window && !!window.parent.document; } catch (e) { return false; } })();
+  if (EMBED) document.documentElement.classList.add('embed');
+  async function api(path, body) {
+    const r = await fetch(BASE + path, body === undefined ? { credentials: 'same-origin' } : { method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/json', 'X-RCL': '1' }, body: JSON.stringify(body) });
+    let j = {}; try { j = await r.json(); } catch (e) { j = { error: 'Purchase did not answer properly (' + r.status + ').' }; }
+    if (j.preview || /^This is a Preview/.test(String(j.error || ''))) previewBand();
+    if (!r.ok || j.error) { const e = new Error(j.error || ('Error ' + r.status)); e.status = r.status; e.code = j.code; e.data = j; throw e; }
+    return j;
+  }
+  // (21-10-2026) a Preview (a test copy on the staging database): a band on top, so nobody takes it for the live Purchase
+  function previewBand() {
+    if (document.getElementById('rcl_preview_band') || EMBED) return;      // inside Mechanical's screen: Mechanical shows it
+    const b = document.createElement('div'); b.id = 'rcl_preview_band'; b.textContent = 'TEST copy (Preview) – the staging database · nothing here is live';
+    b.style.cssText = 'display:block;height:22px;line-height:22px;padding:0 8px;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;background:#F59E0B;color:#111;font:700 12px/22px system-ui,sans-serif;text-align:center';
+    document.body.insertBefore(b, document.body.firstChild);      // in the page's flow, above its top bar – it hides nothing
+  }
+  function ask(title, html, buttons, wide) {
+    return new Promise(res => {
+      $('dlg_t').textContent = title; $('dlg_b').innerHTML = html; $('dlg_box').className = 'dlg' + (wide ? ' wide' : '');
+      $('dlg_btns').innerHTML = buttons.map((b, i) => '<button type="button" class="btn' + (b.primary ? ' primary' : '') + (b.bad ? ' bad' : '') + '" data-i="' + i + '">' + esc(b.label) + '</button>').join('');
+      $('dlg').hidden = false;
+      const done = v => { $('dlg').hidden = true; $('dlg_btns').onclick = null; document.removeEventListener('keydown', key); res(v); };
+      const key = e => { if (e.key === 'Escape') done(null); };
+      document.addEventListener('keydown', key);
+      $('dlg_btns').onclick = e => { const b = e.target.closest('[data-i]'); if (b) done(buttons[Number(b.dataset.i)].value); };
+      setTimeout(() => { const f = $('dlg_btns').querySelector('.primary') || $('dlg_btns').firstElementChild; if (f) f.focus(); }, 30);
+    });
+  }
+
+  /* ---------------- DASHBOARD: the Purchase Department and the sites where this person has Purchase ---------------- */
+  const LOADED = (() => { let ok; const p = new Promise(res => { ok = res; }); return { p: p, ok: () => ok() }; })();
+  const LOAD = {
+    async dashboard() {
+      const me = S.me, list = (me.sites || []).length ? me.sites : [{ code: me.site, name: me.siteName || me.site }];
+      const ROLE = { super: 'Super Admin – every site', admin: 'Purchase Admin', user: 'Purchase User' };
+      $('db_body').innerHTML = '<section class="tiles"><div class="tile"><small>Your sites with Purchase</small><b>' + list.length + '</b><span>' + esc(ROLE[me.user.role] || '') + '</span></div></section>' +
+        '<div class="tw"><table><thead><tr><th>Site</th><th>Code</th><th></th></tr></thead><tbody>' +
+        list.map(x => '<tr><td class="nm">' + esc(x.name) + '</td><td>' + esc(x.code) + '</td><td>' + (x.code === me.site ? '<span class="tag">Open now</span>' : '') + '</td></tr>').join('') + '</tbody></table></div>' +
+        '<p class="muted" style="margin:12px 0 0">A new site shows here by itself once the Super Admin gives you Purchase on it (Portal → Users &amp; Access). <span class="mr">नवीन site ला Purchase दिले की ती इथे आपोआप दिसेल.</span></p>';
+    },
+  };
+
+  /* ---------------- SIGN-IN THROUGH THE PORTAL (as the Store) ---------------- */
+  let PORTAL = '';
+  const PAGES = { dashboard: 'Dashboard' };
+  const WHO = { dashboard: 'all' };
+  const isSuper = () => S.me && S.me.user.role === 'super';
+  const isAdmin = () => S.me && (S.me.user.role === 'super' || S.me.user.role === 'admin');
+  const mayOpen = p => WHO[p] === 'all' || (WHO[p] === 'admin' && isAdmin()) || (WHO[p] === 'super' && isSuper());
+  const IC = { dashboard: '<path d="m12 14 4-4"/><path d="M3.34 19a10 10 0 1 1 17.32 0"/>' };
+  const svgIc = k => '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' + IC[k] + '</svg>';
+  const lastSite = () => { try { return localStorage.getItem('rcl_pur_site') || ''; } catch (e) { return ''; } };
+  const hashArg = k => { const m = new RegExp('[#&]' + k + '=([^&]*)').exec(location.hash || ''); return m ? decodeURIComponent(m[1]) : ''; };
+  function toPortal(path, auto) {
+    if (!PORTAL) { startMsg('Purchase is not linked to the Portal yet (PORTAL_URL in Vercel).', 'Purchase अजून Portal ला जोडलेले नाही.'); return; }
+    if (auto) {
+      let hops = []; try { hops = JSON.parse(sessionStorage.getItem('rcl_pur_hops') || '[]').filter(t => Date.now() - t < 120000); } catch (e) { hops = []; }
+      if (hops.length >= 3) { startMsg('The Portal could not sign you in here (several tries in a row). Open the Portal and choose Purchase again.', 'Portal मधून इथे sign in झाले नाही. Portal उघडा आणि Purchase पुन्हा निवडा.', true); return; }
+      hops.push(Date.now()); try { sessionStorage.setItem('rcl_pur_hops', JSON.stringify(hops)); } catch (e) { /* no guard without storage */ }
+    }
+    location.href = PORTAL + path;
+  }
+  const goSignIn = (site, page) => { site = site || lastSite(); toPortal(site ? '/api/go?module=purchase&site=' + encodeURIComponent(site) + (page ? '&page=' + encodeURIComponent(page) : '') : '/', true); };
+  function startMsg(en, mr, link) {
+    $('v_app').hidden = true; $('v_start').hidden = false; $('st_msg').textContent = en; $('st_mr').textContent = mr || '';
+    $('st_go').hidden = !(link && PORTAL); $('st_link').href = PORTAL ? PORTAL + '/' : '#'; if (EMBED) $('st_link').target = '_top';
+  }
+  async function embedStart() {
+    const site = hashArg('site').toUpperCase(), page = PAGES[hashArg('page')] ? hashArg('page') : '', who = hashArg('u').toLowerCase();
+    let me; try { me = await api('api/me'); } catch (e) { return startMsg(e.message, '', false); }
+    PORTAL = me.portal || '';
+    if (me.signedIn && (!site || site === me.site) && (!who || who === String(me.user.email).toLowerCase())) return show(me, page);
+    if (me.signedIn) { try { await api('api/logout', {}); } catch (e) { /* it ends anyway */ } }
+    return embedTicket(site || (me.signedIn ? me.site : ''), page, who);
+  }
+  async function embedTicket(site, page, who) {
+    if (!PORTAL || !site) return startMsg('Purchase could not be opened here.', 'Purchase इथे उघडता आले नाही.', !!PORTAL);
+    let j = {}, ok = false;
+    try { const r = await fetch(PORTAL + '/api/go?module=purchase&site=' + encodeURIComponent(site) + '&json=1', { credentials: 'same-origin', headers: { 'X-RCL': '1' } }); ok = r.ok; j = await r.json(); }
+    catch (e) { return startMsg('No connection – check the internet and open the page again.', 'Internet तपासा आणि पान पुन्हा उघडा.', false); }
+    if (!ok || !j.ticket) {
+      if (j.code === 'signin') return startMsg('Your sign-in on the Portal has ended – sign in again.', 'Portal चा login संपला आहे – पुन्हा sign in करा.', true);
+      if (j.code === 'noaccess') return startMsg('You do not have Purchase on this site – ask the Super Admin.', 'या site वर तुम्हाला Purchase दिलेले नाही – Super Admin ला विचारा.', false);
+      return startMsg(j.error || 'Purchase could not be opened here.', 'Purchase इथे उघडता आले नाही.', true);
+    }
+    let r; try { r = await api('api/sso', { ticket: j.ticket }); } catch (e) { return startMsg(e.message, 'Purchase उघडता आले नाही.', true); }
+    if (who && String(r.user.email).toLowerCase() !== who) { try { await api('api/logout', {}); } catch (e) {} return startMsg('The Portal is signed in as another person on this computer – sign out and sign in again.', 'या computer वर Portal मध्ये दुसरी व्यक्ती आहे – sign out करून पुन्हा sign in करा.', true); }
+    PORTAL = r.portal || PORTAL; show(r, page);
+  }
+  /* THE SIGN-IN IS KEPT FRESH (23-10-2026, his yes): an Purchase sign-in lasts 15 minutes. Every 10 minutes – and when the page
+   * comes back after a pause – the page asks the Portal for a fresh ticket and signs in again with it. Whom the Super Admin removed
+   * gets none: the sign-in ends and the page says so. A new role shows at once. No answer: tried again in 2 minutes (a sign-in that
+   * ended meanwhile is signed in again when the next action meets it, as before). */
+  const RENEW_MS = 10 * 60000; let renewAt = 0, renewT = 0, renewing = false;
+  // (24-10-2026, Mechanical's update-155) a tab in the background does not renew (it is renewed the moment it is looked at again – below)
+  function renewStart() { renewAt = Date.now(); clearInterval(renewT); renewT = setInterval(() => { if (!document.hidden && Date.now() - renewAt >= RENEW_MS) renew(); }, 30000); }
+  document.addEventListener('visibilitychange', () => { if (!document.hidden && S.me && renewT && Date.now() - renewAt >= RENEW_MS) renew(); });
+  async function renew() {
+    if (renewing || !S.me || !PORTAL) return; renewing = true;
+    const later = () => { renewAt = Date.now() - RENEW_MS + 2 * 60000; };
+    try {
+      let j = {}; const r = await fetch(PORTAL + '/api/go?module=purchase&site=' + encodeURIComponent(S.me.site) + '&json=1&renew=1', { credentials: 'same-origin', headers: { 'X-RCL': '1' } });
+      try { j = await r.json(); } catch (e) { j = {}; }
+      if (!r.ok || !j.ticket) {
+        if (j.code !== 'noaccess' && j.code !== 'signin') return later();
+        clearInterval(renewT); renewT = 0; S.me = null; try { await api('api/logout', {}); } catch (e) { /* it ends by itself in 15 minutes */ }
+        return j.code === 'noaccess' ? startMsg('You no longer have Purchase on this site – ask the Super Admin.', 'या site वर तुम्हाला आता Purchase दिलेले नाही – Super Admin ला विचारा.', false)
+          : startMsg('Your sign-in on the Portal has ended – sign in again.', 'Portal चा login संपला आहे – पुन्हा sign in करा.', true);
+      }
+      const x = await api('api/sso', { ticket: j.ticket, renew: 1 }); renewAt = Date.now();
+      if (!S.me) return;
+      if (String(x.user.email).toLowerCase() !== String(S.me.user.email).toLowerCase()) { location.reload(); return; }
+      if (x.user.role === S.me.user.role) S.me = Object.assign({}, S.me, x);
+      else show(x, S.page);      // (the Super Admin changed his role: the menu and the pages follow)
+    } catch (e) { later(); }
+    finally { renewing = false; }
+  }
+  async function start() {
+    if (EMBED) return embedStart();
+    const tk = hashArg('sso'), wantSite = hashArg('site').toUpperCase(), wantPage = PAGES[hashArg('page')] ? hashArg('page') : '';
+    if (location.hash) history.replaceState(null, '', location.pathname + location.search);
+    if (tk) {
+      try { const r = await api('api/sso', { ticket: tk }); try { sessionStorage.removeItem('rcl_pur_hops'); } catch (e) {} PORTAL = r.portal; return show(r, wantPage); }
+      catch (e) {
+        try { PORTAL = (await api('api/me')).portal || ''; } catch (e2) { PORTAL = ''; }
+        if (e.code === 'ticket' && /ran out|already used/.test(e.message)) return goSignIn(wantSite, wantPage);
+        return startMsg(e.message, 'Purchase उघडता आले नाही. Portal मधून पुन्हा उघडा.', true);
+      }
+    }
+    let me; try { me = await api('api/me'); } catch (e) { return startMsg(e.message, '', false); }
+    PORTAL = me.portal || '';
+    if (!me.signedIn || (wantSite && wantSite !== me.site)) return goSignIn(wantSite, wantPage);
+    show(me, wantPage);
+  }
+  window.addEventListener('hashchange', () => {
+    const tk = hashArg('sso'), site = hashArg('site').toUpperCase(), page = hashArg('page');
+    if (tk || !S.me || (site && site !== S.me.site)) { start(); return; }
+    if (page) go(page);
+  });
+  const MOD_IC = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>';
+  const PG_IC = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"/><path d="M14 3v6h6"/></svg>';
+  const CHEV = '<svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg>';
+  async function show(me, page) {
+    // opened on its own while the person also has Mechanical at this same address: shown inside Mechanical's screen (once in 30 s)
+    const mech = !EMBED && (me.mods || []).find(x => x.key === 'mechanical' && x.url);
+    let same = false; try { same = !!mech && new URL(mech.url).origin === location.origin; } catch (e) { same = false; }
+    if (same) {
+      let last = 0; try { last = Number(sessionStorage.getItem('rcl_pur_inmech') || 0); } catch (e) { last = 0; }
+      if (Date.now() - last > 30000) {
+        try { sessionStorage.setItem('rcl_pur_inmech', String(Date.now())); } catch (e) { /* the 30 s rule needs storage */ }
+        location.replace(mech.url.replace(/\/+$/, '') + '/#site=' + encodeURIComponent(me.site) + '&page=purchase__' + (page || 'dashboard'));
+        return;
+      }
+    }
+    S.me = me; try { localStorage.setItem('rcl_pur_site', me.site); } catch (e) { /* this tab only */ }
+    renewStart();      // (the sign-in is kept fresh – see renew)
+    $('v_start').hidden = true; $('v_app').hidden = false;
+    $('site_name').textContent = me.siteName || me.site;
+    const ROLE = { super: 'Super Admin', admin: 'Purchase Admin', user: 'Purchase User' };
+    $('u_name').textContent = me.user.name; $('u_role').textContent = (ROLE[me.user.role] || '') + ' · ' + (me.siteName || me.site);
+    $('pur_pages').innerHTML = Object.keys(PAGES).filter(mayOpen).map(k => '<button type="button" class="navbtn" data-page="' + k + '">' + svgIc(k) + '<span>' + esc(PAGES[k]) + '</span></button>').join('');
+    const others = EMBED ? [] : (me.mods || []).filter(x => x.key !== 'purchase');
+    $('mods').innerHTML = others.map(x => '<div class="grp" data-mod="' + esc(x.key) + '"><button type="button" class="grphead" aria-expanded="false">' + MOD_IC + esc(x.name) + CHEV + '</button><div class="items"><div class="note">…</div></div></div>').join('');
+    others.forEach(modPages);
+    LOADED.ok();
+    go(page || 'dashboard');
+  }
+  const modLink = (x, page) => {
+    const pg = page ? '&page=' + encodeURIComponent(page) : '';
+    return x.url ? x.url.replace(/\/+$/, '') + '/#site=' + encodeURIComponent(S.me.site) + pg : PORTAL + '/api/go?module=' + encodeURIComponent(x.key) + '&site=' + encodeURIComponent(S.me.site) + pg;
+  };
+  async function modPages(x) {
+    const box = document.querySelector('#mods .grp[data-mod="' + x.key + '"] .items'); if (!box) return;
+    let pages = [];
+    try { if (x.url) { const r = await fetch(x.url.replace(/\/+$/, '') + '/menu.json', { credentials: 'same-origin' }); if (r.ok) pages = ((await r.json()) || {}).pages || []; } } catch (e) { pages = []; }
+    let grp = '';
+    box.innerHTML = (pages.length ? pages : [{ key: '', name: 'Open ' + x.name }]).slice(0, 60).map(p => {
+      const cap = p.group && p.group !== grp ? '<div class="note cap">' + esc(p.group) + '</div>' : ''; if (p.group) grp = p.group;
+      const go = pages.length ? modLink(x, /^[a-z0-9_-]{1,40}$/i.test(String(p.key)) ? p.key : '') : modLink({ key: x.key }, '');
+      return cap + '<button type="button" class="navbtn" data-go="' + esc(go) + '">' + PG_IC + '<span>' + esc(String(p.name).slice(0, 60)) + '</span></button>';
+    }).join('');
+  }
+  $('nav').addEventListener('click', e => {
+    const h = e.target.closest('.grphead'); if (h) { const g = h.closest('.grp'), open = !g.classList.contains('open'); g.classList.toggle('open', open); h.setAttribute('aria-expanded', String(open)); return; }
+    const b = e.target.closest('[data-go]'); if (b) { location.href = b.dataset.go; return; }
+    const p = e.target.closest('[data-page]'); if (p) { go(p.dataset.page); if (window.innerWidth <= 860) $('side').classList.remove('open'); }
+  });
+  function go(page) {
+    if (!PAGES[page] || !mayOpen(page)) page = 'dashboard';
+    S.page = page; $('pg_title').textContent = PAGES[page];
+    document.querySelectorAll('#pur_pages [data-page]').forEach(b => { if (b.dataset.page === page) b.setAttribute('aria-current', 'page'); else b.removeAttribute('aria-current'); });
+    Object.keys(PAGES).forEach(k => { $('pg_' + k).hidden = k !== page; });
+    try { history.replaceState(null, '', location.pathname + location.search + '#page=' + page); } catch (e) { /* the address stays */ }
+    const seq = (go.seq = (go.seq || 0) + 1);
+    document.body.dataset.loaded = '';      // (set when the page has its data – the tests wait for it)
+    LOAD[page]().then(() => { if (seq === go.seq) document.body.dataset.loaded = page; }, failed);
+  }
+  function failed(e) {
+    if (e && e.status === 401 && e.code === 'session' && EMBED) { embedTicket(S.me && S.me.site, S.page, hashArg('u').toLowerCase()); return; }
+    if (e && e.status === 401 && e.code === 'session') { toast('Your sign-in ended – signing in again through the Portal…', true); setTimeout(() => goSignIn(S.me && S.me.site, S.page), 1200); return; }
+    if (e && e.code === 'changed') { toast(e.message, true); LOAD[S.page]().catch(() => {}); return; }
+    toast((e && e.message) || String(e), true);
+  }
+  $('site_chg').addEventListener('click', async () => {
+    const me = S.me; if (!me) return;
+    const list = (me.sites || []).length ? me.sites : [{ code: me.site, name: me.siteName }];
+    const v = await ask('Change site', '<p class="muted">Your sites with Purchase</p>', list.map(x => ({ label: x.name + (x.code === me.site ? ' – open now' : ''), value: x.code === me.site ? null : x.code, primary: x.code === me.site }))
+      .concat([{ label: 'All my modules (Portal)', value: '__portal' }, { label: 'Stay here', value: null }]));
+    if (v === '__portal') toPortal('/?menu=1', false); else if (v) toPortal('/api/go?module=purchase&site=' + encodeURIComponent(v) + '&page=' + encodeURIComponent(S.page || 'dashboard'), false);
+  });
+  $('u_logout').addEventListener('click', async () => {
+    const v = await ask('Logout?', '<p>This signs you out of the Portal and every module.</p><p class="mr">यामुळे Portal आणि सर्व modules मधून sign out होईल.</p>', [{ label: 'Cancel', value: false }, { label: 'Logout', value: true, primary: true }]);
+    if (!v) return;
+    try { await api('api/logout', {}); } catch (e) { /* the cookie ends anyway */ }
+    try { localStorage.removeItem('rcl_pur_site'); } catch (e) {}
+    if (PORTAL) location.href = PORTAL + '/?signout=1'; else startMsg('Signed out.', 'Sign out झाले.', false);
+  });
+  $('menu_btn').addEventListener('click', () => $('side').classList.toggle('open'));
+  document.addEventListener('click', e => { if (window.innerWidth <= 860 && $('side').classList.contains('open') && !e.target.closest('#side') && !e.target.closest('#menu_btn')) $('side').classList.remove('open'); });
+
+  /* ---------------- SEARCH FROM THE SCREEN AROUND IT (as every module: window.rclModule) ---------------- */
+  const sNorm = v => String(v === null || v === undefined ? '' : v).toLowerCase().replace(/\s+/g, ' ').trim();
+  function sFind(q) {
+    const words = sNorm(q).split(' ').filter(Boolean); if (!words.length) return [];
+    const hit = t => words.every(w => sNorm(t).indexOf(w) > -1), out = [];
+    Object.keys(PAGES).filter(mayOpen).forEach(k => { if (hit(PAGES[k] + ' purchase')) out.push({ group: 'Pages', kind: 'page', title: PAGES[k], sub: 'Purchase', page: k }); });
+    return out.slice(0, 8);
+  }
+  window.rclModule = {
+    key: 'purchase',
+    async search(q) { await Promise.race([LOADED.p, new Promise(res => setTimeout(res, 8000))]); return S.me ? sFind(q) : []; },
+    open(page) { go(PAGES[page] ? page : 'dashboard'); },
+  };
+
+  start();
+})();
+</script>
+</body>
+</html>

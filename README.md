@@ -29,6 +29,7 @@ stay in that site's own database (the Store); Purchase writes into a site's Stor
 | Sign-in with the Portal's ticket / who is signed in / sign out | `api/sso.js`, `api/me.js`, `api/logout.js` |
 | The menu for the screen around it (`/menu.json` → `api/menu.js`, per person) | `api/menu.js` |
 | Database, ticket check, sign-ins, activity record, Preview guard | `lib/db.js`, `lib/portal.js`, `lib/session.js`, `lib/activity.js`, `lib/preview.js` |
+| The backup export (only for Mechanical's backup, with the secret) | `api/backup-export.js`, `lib/bkexport.js` |
 | Database (run once in the Purchase Supabase) | `sql/pur_step1_base.sql` |
 
 ## Database step 1 (once, in the rcl-purchase Supabase → SQL Editor)
@@ -44,9 +45,17 @@ It touches no other database.
 | `SUPABASE_SECRET_KEY` | the Purchase project's secret key (Supabase → Project Settings → API Keys) |
 | `PORTAL_URL` | the same value as in the Store and Engineering projects |
 | `PUBLIC_URL` | `https://oneclicksolution-erp.vercel.app/purchase` |
+| `BACKUP_EXPORT_SECRET` | (with Mechanical's update-195) the SAME long secret word as in rclerp, rcl-portal and rcl-engineering. Mechanical's nightly backup asks `/api/backup-export` with it for Purchase's rows (into Purchase's own backup Sheet). Not set = nothing is given. |
 
 In the Portal (Super Admin): **Modules** → key `purchase`, name `Purchase`, address `https://oneclicksolution-erp.vercel.app/purchase`;
 then **Users & Access** → Purchase Admin / Purchase User per site.
+
+## Backup into Purchase's own Google Sheet (30-10-2026, with Mechanical's update-195)
+Asked: "ya modual la google sheet asign kruya"; his choice: Purchase's own Sheet (every site's Purchase data in one Sheet, like the
+Portal's backup; full → Sheet 2). The Super Admin gives its link in the Portal → Sites → **Purchase backup** (Change link / Add
+Sheet N / Backup now). Every night Mechanical copies the tabs "Purchase – People / Settings / Numbers / Activity" (each row with its
+site) through `api/backup-export.js` (`lib/bkexport.js` – the same file as the Portal's and Engineering's), asked with
+`BACKUP_EXPORT_SECRET`. Only the listed columns leave; the sign-ins and used tickets never. No database step.
 
 ## A Preview = the staging (TEST) copy (as every module)
 On a Vercel **Preview**, `lib/preview.js` asks the database first: it must have the row `app_settings.THIS_IS_A_TEST_DATABASE = 'yes'`.

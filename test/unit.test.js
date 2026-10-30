@@ -114,3 +114,41 @@ test('settings files; no secret in any file', () => {
   files.filter(f => /\.(js|json|html|sql|md)$/.test(f) && !/test[\\/]/.test(f)).forEach(f => { const t = fs.readFileSync(f, 'utf8');
     assert.ok(!/sb_secret_[A-Za-z0-9]{10,}|sb_publishable_[A-Za-z0-9]{10,}|eyJhbGciOi[A-Za-z0-9_-]{20,}|service_role\s*[:=]\s*['"][^'"]{20,}/.test(t), 'no key in ' + path.relative(ROOT, f)); });
 });
+
+test('the backup export (Mechanical update-195): only with the secret; every site (Purchase\'s own Sheet); only the listed columns; never the sign-ins or tickets; "since" for Sheet 2', async () => {
+  const E = require('../api/backup-export.js');
+  const env = { BACKUP_EXPORT_SECRET: process.env.BACKUP_EXPORT_SECRET, VERCEL_ENV: process.env.VERCEL_ENV, SUPABASE_URL: process.env.SUPABASE_URL, SUPABASE_SECRET_KEY: process.env.SUPABASE_SECRET_KEY }, f0 = global.fetch;
+  const asked = [];
+  global.fetch = async (url) => { const u = String(url); asked.push(u);
+    if (/\/rest\/v1\/$/.test(u)) return new Response(JSON.stringify({ definitions: { pur_people: { properties: { site: {}, email: {}, name: {}, role: {}, first_seen: {}, last_seen: {}, later_col: {} } },
+      pur_activity: { properties: { id: {}, at: {}, site: {}, email: {}, action: {}, target: {}, detail: {} } }, pur_sessions: { properties: { id_hash: {}, site: {} } }, pur_tickets: { properties: { jti: {} } } } }), { status: 200 });
+    if (/\?select=site,email,name/.test(u) || /\?select=id,at,site/.test(u)) return new Response(JSON.stringify([{ site: 'S1', email: 'a@rcl.test' }]), { status: 200 });
+    return new Response('[]', { status: 200, headers: { 'content-range': '*/3' } }); };
+  const call = async (body, auth) => { let status = 0, out = null;
+    const res = { setHeader() {}, end(t) { out = JSON.parse(t); }, set statusCode(v) { status = v; } };
+    await E({ method: 'POST', headers: { authorization: auth === undefined ? 'Bearer ' + 'k'.repeat(30) : auth }, body: body }, res); return { status: status, j: out }; };
+  try {
+    process.env.SUPABASE_URL = 'http://db.test'; process.env.SUPABASE_SECRET_KEY = 'k'; process.env.VERCEL_ENV = 'production';
+    delete process.env.BACKUP_EXPORT_SECRET;
+    assert.strictEqual((await call({ action: 'catalog' })).status, 503, 'not set up: nothing is given');
+    process.env.BACKUP_EXPORT_SECRET = 'k'.repeat(30);
+    assert.strictEqual((await call({ action: 'catalog' }, 'Bearer wrong')).status, 401);
+    assert.strictEqual((await call({ action: 'catalog' }, '')).status, 401);
+    asked.length = 0; let r = await call({ action: 'catalog' });
+    assert.strictEqual(r.status, 200, JSON.stringify(r.j));
+    assert.deepStrictEqual(r.j.tables.map(t => [t.name, t.title]), [['pur_people', 'People'], ['pur_activity', 'Activity']], 'the tables this database has; the sign-ins and tickets never');
+    assert.deepStrictEqual(r.j.tables[0].cols, ['site', 'email', 'name', 'role', 'first_seen', 'last_seen'], 'a column added later never leaves by itself');
+    assert.ok(asked.every(u => !/site=eq\./.test(u)), 'every site: no site filter');
+    asked.length = 0; r = await call({ action: 'rows', table: 'pur_people' });
+    assert.ok(/pur_people\?select=site,email,name,role,first_seen,last_seen&order=site\.asc,email\.asc&offset=0&limit=1000$/.test(asked[0]), asked[0]);
+    asked.length = 0; await call({ action: 'rows', table: 'pur_activity', since: '2026-10-30T08:00:00Z' });
+    assert.ok(/pur_activity\?select=id,at,site,email,action,target,detail&at=gte\.2026-10-30T08%3A00%3A00Z&order=id\.asc/.test(asked[0]), asked[0]);
+    for (const t of ['pur_sessions', 'pur_tickets', 'web_props']) assert.strictEqual((await call({ action: 'rows', table: t })).status, 400, t);
+    assert.strictEqual((await call({ action: 'usage' })).status, 400);
+    assert.strictEqual((await call({ action: 'rows', table: 'pur_activity', since: "x';--" })).status, 400);
+    const E2 = require('../api/backup-export.js').TABLES;
+    assert.deepStrictEqual(Object.keys(E2), ['pur_people', 'pur_settings', 'pur_numbers', 'pur_activity']);
+  } finally { global.fetch = f0; Object.keys(env).forEach(k => { if (env[k] === undefined) delete process.env[k]; else process.env[k] = env[k]; }); }
+  // the same file as the Portal's and Engineering's (when they are next to this one)
+  ['rcl-portal', 'rcl-engineering'].forEach(r => { const p = path.join(ROOT, '..', r, 'lib', 'bkexport.js'); if (fs.existsSync(p)) assert.strictEqual(fs.readFileSync(path.join(ROOT, 'lib', 'bkexport.js'), 'utf8'), fs.readFileSync(p, 'utf8'), r); });
+});

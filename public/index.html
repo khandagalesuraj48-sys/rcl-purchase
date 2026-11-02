@@ -198,15 +198,16 @@
   async function api(path, body) {
     const r = await fetch(BASE + path, body === undefined ? { credentials: 'same-origin' } : { method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/json', 'X-RCL': '1' }, body: JSON.stringify(body) });
     let j = {}; try { j = await r.json(); } catch (e) { j = { error: 'Purchase did not answer properly (' + r.status + ').' }; }
-    if (j.preview || /^This is a Preview/.test(String(j.error || ''))) previewBand();
+    if (j.beta) previewBand(true); else if (j.preview || /^This is a Preview/.test(String(j.error || ''))) previewBand();
     if (!r.ok || j.error) { const e = new Error(j.error || ('Error ' + r.status)); e.status = r.status; e.code = j.code; e.data = j; throw e; }
     return j;
   }
   // (21-10-2026) a Preview (a test copy on the staging database): a band on top, so nobody takes it for the live Purchase
-  function previewBand() {
+  // (02-11-2026) the BETA copy (the testers' copy of the next version) has its own band: what is saved here IS live
+  function previewBand(beta) {
     if (document.getElementById('rcl_preview_band') || EMBED) return;      // inside Mechanical's screen: Mechanical shows it
-    const b = document.createElement('div'); b.id = 'rcl_preview_band'; b.textContent = 'TEST copy (Preview) – the staging database · nothing here is live';
-    b.style.cssText = 'display:block;height:22px;line-height:22px;padding:0 8px;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;background:#F59E0B;color:#111;font:700 12px/22px system-ui,sans-serif;text-align:center';
+    const b = document.createElement('div'); b.id = 'rcl_preview_band'; b.textContent = beta ? 'BETA – the new version for testers · the data is LIVE' : 'TEST copy (Preview) – the staging database · nothing here is live';
+    b.style.cssText = 'display:block;height:22px;line-height:22px;padding:0 8px;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;background:' + (beta ? '#6D28D9;color:#fff' : '#F59E0B;color:#111') + ';font:700 12px/22px system-ui,sans-serif;text-align:center';
     document.body.insertBefore(b, document.body.firstChild);      // in the page's flow, above its top bar – it hides nothing
   }
   function ask(title, html, buttons, wide) {

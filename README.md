@@ -57,6 +57,15 @@ Sheet N / Backup now). Every night Mechanical copies the tabs "Purchase – Peop
 site) through `api/backup-export.js` (`lib/bkexport.js` – the same file as the Portal's and Engineering's), asked with
 `BACKUP_EXPORT_SECRET`. Only the listed columns leave; the sign-ins and used tickets never. No database step.
 
+
+## The BETA copy (02-11-2026 – the testers' copy on the live data; Mechanical's `BETA_SETUP.md`)
+* The branch `beta` deployed as a Preview **with `RCL_CHANNEL = beta`** set in Vercel for that branch only (`lib/preview.js`
+  `isBeta()` – both must hold): the guard above is skipped – it works on the **live** database the branch's settings name.
+  Any other Preview: refused on a database without the test mark, as before.
+* `/api/me` and `/api/sso` say `beta: true`; the page shows a purple band "BETA – the new version for testers · the data is LIVE".
+* Its address: `https://rclerp-git-beta-pk12356843.vercel.app/purchase` (Mechanical's `vercel.json`); the Portal sends a tester there
+  (Portal → Modules → Beta link). It runs no timed job (Vercel runs those only on the live one).
+
 ## A Preview = the staging (TEST) copy (as every module)
 On a Vercel **Preview**, `lib/preview.js` asks the database first: it must have the row `app_settings.THIS_IS_A_TEST_DATABASE = 'yes'`.
 The live Purchase database has no `app_settings` table, so a Preview pointing at it is refused with 503 – nothing read or written;

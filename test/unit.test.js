@@ -84,7 +84,7 @@ test('database step 1: only adds, every table for the server only, the people / 
 
 test('a Preview works only with the database marked as the TEST one (as every module); live asks nothing', async () => {
   const P = require('../lib/preview'), { db } = require('../lib/db');
-  const env = { VERCEL_ENV: process.env.VERCEL_ENV, SUPABASE_URL: process.env.SUPABASE_URL, SUPABASE_SECRET_KEY: process.env.SUPABASE_SECRET_KEY }, f0 = global.fetch;
+  const env = { VERCEL_ENV: process.env.VERCEL_ENV, VERCEL_GIT_COMMIT_REF: process.env.VERCEL_GIT_COMMIT_REF, RCL_CHANNEL: process.env.RCL_CHANNEL, SUPABASE_URL: process.env.SUPABASE_URL, SUPABASE_SECRET_KEY: process.env.SUPABASE_SECRET_KEY }, f0 = global.fetch;
   const asked = []; let marked = false;
   global.fetch = async (url) => { asked.push(String(url));
     if (/app_settings\?id=eq\.THIS_IS_A_TEST_DATABASE/.test(url)) return marked ? new Response(JSON.stringify([{ value: 'yes' }]), { status: 200 }) : new Response('{"code":"PGRST205","message":"Could not find the table"}', { status: 404 });
@@ -99,9 +99,21 @@ test('a Preview works only with the database marked as the TEST one (as every mo
     assert.ok(!asked.some(u => /pur_people|pur_activity/.test(u)), 'nothing read or written');
     marked = true; P._forget(); asked.length = 0;
     assert.deepStrictEqual(await db('GET', 'pur_people?select=site'), [{ site: 'S1' }]);
+    // (02-11-2026) the BETA copy – branch "beta" AND RCL_CHANNEL = beta (Vercel, that branch only): the live data, no mark asked;
+    // one of them missing, or live: as before
+    marked = false; process.env.VERCEL_GIT_COMMIT_REF = 'beta'; process.env.RCL_CHANNEL = 'beta'; P._forget(); asked.length = 0;
+    assert.strictEqual(P.isBeta(), true); assert.deepStrictEqual(P.band(), { beta: true });
+    assert.deepStrictEqual(await db('GET', 'pur_people?select=site'), [{ site: 'S1' }]); assert.strictEqual(asked.length, 1, 'the beta copy asks no mark');
+    delete process.env.RCL_CHANNEL; P._forget(); asked.length = 0;
+    assert.strictEqual(P.isBeta(), false); assert.deepStrictEqual(P.band(), { preview: true });
+    await assert.rejects(db('GET', 'pur_people?select=site'), e => e.status === 503 && /This is a Preview/.test(e.message));
+    process.env.RCL_CHANNEL = 'beta'; process.env.VERCEL_GIT_COMMIT_REF = 'staging'; assert.strictEqual(P.isBeta(), false, 'another branch');
+    process.env.VERCEL_ENV = 'production'; process.env.VERCEL_GIT_COMMIT_REF = 'beta'; assert.strictEqual(P.isBeta(), false, 'live'); assert.deepStrictEqual(P.band(), {});
+    // the page: the beta band or the TEST band, as the server says
     const html = fs.readFileSync(path.join(ROOT, 'public', 'index.html'), 'utf8');
-    assert.ok(/if \(j\.preview \|\| \/\^This is a Preview\/\.test\(String\(j\.error \|\| ''\)\)\) previewBand\(\);/.test(html) && /id = 'rcl_preview_band'/.test(html));
-    ['me.js', 'sso.js'].forEach(f => assert.ok(/preview: isPreview\(\) \|\| undefined/.test(fs.readFileSync(path.join(ROOT, 'api', f), 'utf8')), f));
+    assert.ok(/if \(j\.beta\) previewBand\(true\); else if \(j\.preview \|\| \/\^This is a Preview\/\.test\(String\(j\.error \|\| ''\)\)\) previewBand\(\);/.test(html) && /id = 'rcl_preview_band'/.test(html));
+    assert.ok(html.indexOf("'BETA – the new version for testers · the data is LIVE'") > -1 && html.indexOf("'TEST copy (Preview) – the staging database · nothing here is live'") > -1);
+    ['me.js', 'sso.js'].forEach(f => assert.ok(/\.\.\.band\(\)/.test(fs.readFileSync(path.join(ROOT, 'api', f), 'utf8')), f));
   } finally { global.fetch = f0; Object.keys(env).forEach(k => { if (env[k] === undefined) delete process.env[k]; else process.env[k] = env[k]; }); P._forget(); }
 });
 

@@ -8,7 +8,7 @@ const portal = require('../lib/portal');
 const { db } = require('../lib/db');
 const ses = require('../lib/session');
 const { activity } = require('../lib/activity');
-const { isPreview } = require('../lib/preview');
+const { band } = require('../lib/preview');
 
 module.exports = handler(async (req, res) => {
   if (req.method !== 'POST') return send(res, 405, { error: 'POST only.' });
@@ -31,5 +31,5 @@ module.exports = handler(async (req, res) => {
   const cookie = await ses.create(req, c);
   if (old) { try { await db('DELETE', 'pur_sessions?id_hash=eq.' + encodeURIComponent(old.idHash), undefined, 'return=minimal'); } catch (e) { /* it ends by itself in 15 minutes */ } }
   if (!again) await activity(c.site, c.email, 'Sign-in', c.site, { role: c.role });
-  send(res, 200, { ok: true, preview: isPreview() || undefined, user: { email: c.email, name: c.name, role: c.role }, site: c.site, siteName: c.siteName, mods: c.mods, sites: c.sites, portal: portal.url() }, { 'Set-Cookie': cookie });
+  send(res, 200, { ok: true, ...band(), user: { email: c.email, name: c.name, role: c.role }, site: c.site, siteName: c.siteName, mods: c.mods, sites: c.sites, portal: portal.url() }, { 'Set-Cookie': cookie });
 });

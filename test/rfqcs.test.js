@@ -69,9 +69,10 @@ const REQ = (no, st, lines, need) => "(" + no + ", current_date - 2, " + (need ?
     ok('the limit not set yet: null (every CS would go to the Super Admin)', r.status === 200 && r.j.limit === null && r.j.maySet === false, r.j);
     r = await act(AD, 'settingsSave', { limit: 50000 }); r1 = await act(US, 'settingsSave', { limit: 50000 });
     ok('   a Purchase Admin / User cannot set it', r.status === 403 && r1.status === 403, [r.j, r1.j]);
+    const limAct = Number(sql('rcl_pur', "select count(*) from pur_activity where action = 'CS limit set'"));      // (the test may run again – only this run's line counts)
     r = await act(SA, 'settingsSave', { limit: '50,000' });
     ok('the Super Admin sets ₹50,000 – kept for every site (*), in the activity record', r.status === 200 && r.j.limit === 50000 && sql('rcl_pur', "select value->>'amount' from pur_settings where site = '*' and id = 'cs_limit'") === '50000' &&
-      sql('rcl_pur', "select count(*) from pur_activity where action = 'CS limit set'") === '1', r.j);
+      Number(sql('rcl_pur', "select count(*) from pur_activity where action = 'CS limit set'")) === limAct + 1, r.j);
 
     // ---- suppliers ----
     const vs = {};

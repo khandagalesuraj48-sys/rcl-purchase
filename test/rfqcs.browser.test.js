@@ -54,6 +54,7 @@ const REQ = (no, st, lines) => "(" + no + ", current_date - 2, current_date + 10
     const V = await open('view@rcl.test', VPW);
     const menu = await V.evaluate(() => [...document.querySelectorAll('#pur_pages .navbtn')].map(x => x.textContent));
     ok('a Purchase User\'s menu: Dashboard, Inbox, Enquiries, Quotations, Comparative Statement, Suppliers', menu.join() === 'Dashboard,Inbox,Enquiries,Quotations,Comparative Statement,Suppliers', menu);
+    ok('the 🎙 of every typed box is on the page (voice.js – as the Store and Engineering)', await V.evaluate(() => !!window.RclVoice && window.RclVoice.toNumber('साडे तीन हजार') === '3500'));
     ok('the Inbox opens', !!(await page(V, 'inbox')));
     const rows = await until(() => V.evaluate(() => { const t = [...document.querySelectorAll('#in_body tr')].map(r => r.innerText); return t.some(x => /Cement OPC 53/.test(x)) ? t : null; }), 20000);
     ok('   the approved requirement 9001 of S1: Cement OPC 53 – 100 Bag, TMT Bar 12 mm – 500 Kg, each with its tick', !!rows && rows.some(x => /Cement OPC 53/.test(x) && /100\s*Bag/.test(x)) && !!(await V.$('#in_body input[data-k="S1:9001:1"]')) && !!(await V.$('#in_body input[data-k="S1:9001:2"]')), rows);

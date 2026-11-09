@@ -355,3 +355,13 @@ test('the pages of Phase 1: pur.js parses, draws every new page, the WhatsApp li
   assert.ok(/'https:\/\/wa\.me\/' \+ \(v\.wa \|\| ''\) \+ '\?text=' \+ encodeURIComponent\(waText\(q, v\)\)/.test(js) && !/mailto:/.test(js), 'Share on WhatsApp – no e-mail');
   assert.ok(/<span class="tag">L1<\/span>/.test(js) && /Total without GST/.test(js) && /GST \(beside\)/.test(js));
 });
+
+test('(09-11-2026, his rule: every typed box gets the voice mic – "the app AND the website") Purchase\'s page has voice.js, the same file as the Store\'s and Engineering\'s: a number said in words → the number; the microphone for its own pages only', () => {
+  const fs = require('fs'), path = require('path');
+  const V = require('../public/voice.js');
+  [['साडे तीन हजार', '3500'], ['twelve point five', '12.5'], ['1,200', '1200'], ['डेढ़ सौ', '150']].forEach(([said, want]) => assert.strictEqual(V.toNumber(said), want, said));
+  const page = fs.readFileSync(path.join(__dirname, '..', 'public', 'index.html'), 'utf8');
+  assert.ok(page.includes('<script src="voice.js"></script>\n<script src="pur.js"></script>'), 'the page loads it (before its pages)');
+  const pp = (JSON.parse(fs.readFileSync(path.join(__dirname, '..', 'vercel.json'), 'utf8')).headers || []).flatMap(h => h.headers || []).find(h => h.key === 'Permissions-Policy').value;
+  assert.strictEqual(pp, 'camera=(), microphone=(self), geolocation=()');
+});

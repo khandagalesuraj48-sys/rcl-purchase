@@ -43,7 +43,8 @@ const until = async (fn, ms) => { const t = Date.now(); while (Date.now() - t < 
     await wait(800); await p.screenshot({ path: path.join(SHOTS, 'inmech-purchase.png') });
     await app(p).evaluate(() => { const g = document.querySelector('#grp_mods .modgrp[data-mod="purchase"]'); if (g && !g.classList.contains('open')) g.querySelector('.grphead').click(); });
     const menu = await until(() => app(p).evaluate(() => { const L = [...document.querySelectorAll('#grp_mods .modgrp[data-mod="purchase"] .navbtn[data-page]')].map(x => x.textContent.trim()); return L.length ? L : null; }), 15000);
-    ok('Mechanical\'s dark menu: Purchase with its page (Dashboard)', (menu || []).join() === 'Dashboard', menu);
+    // (09-11-2026, Purchase Phase 1) the Dashboard first, then the purchase pages
+    ok('Mechanical\'s dark menu: Purchase with its pages (Dashboard, Inbox … Comparative Statement)', (menu || [])[0] === 'Dashboard' && ['Inbox', 'Enquiries', 'Quotations', 'Comparative Statement', 'Suppliers'].every(k => (menu || []).indexOf(k) > -1), menu);
     await app(p).evaluate(() => { gsOpen(); const i = document.getElementById('gs_in'); i.value = 'Purchase dashboard'; i.dispatchEvent(new Event('input')); });
     const hit = await until(() => app(p).evaluate(() => { const t = document.getElementById('gs_list').innerText; return /Purchase/i.test(t) && /Dashboard/.test(t) ? t.slice(0, 300) : null; }), 20000);
     ok('Ctrl K (Mechanical\'s search) finds Purchase\'s Dashboard', !!hit, hit || await app(p).evaluate(() => document.getElementById('gs_list').innerText.slice(0, 600)));

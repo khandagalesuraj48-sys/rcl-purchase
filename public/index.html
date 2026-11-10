@@ -161,6 +161,22 @@
   html.embed .app { min-height: 0; }
   html.embed main { max-width: none; padding: 2px 2px 24px; }
   html.embed .start { min-height: 50vh; }
+  /* ================= (motion – his brief of 10-11-2026 "Enterprise UI Animation & Micro-Interaction Upgrade"; the same as Mechanical's) =================
+   * Visual only: nothing here changes what a button does, when a request is sent or what it answers. transform / opacity only; off with the
+   * system's reduced motion. A question box pops in (Scale Pop, from 72 %), a page of this module zooms in when it is shown, a button is
+   * pressed in, the message slides in. */
+  @keyframes moPop { from { opacity: 0; transform: scale(.72); } 60% { opacity: 1; } to { opacity: 1; transform: none; } }
+  @keyframes moZoomIn { from { opacity: 0; transform: scale(.965); } to { opacity: 1; transform: none; } }
+  @keyframes moFade { from { opacity: 0; } to { opacity: 1; } }
+  @keyframes moToast { from { opacity: 0; transform: translate(-50%, 10px); } to { opacity: 1; transform: translate(-50%, 0); } }      /* (the message is centred with translateX(-50%) – kept) */
+  .dlg-back:not([hidden]) { animation: moFade .18s ease both; }
+  .dlg-back:not([hidden]) .dlg { animation: moPop .26s cubic-bezier(.34, 1.45, .64, 1) both; }
+  div[id^="pg_"]:not([hidden]) { animation: moZoomIn .22s cubic-bezier(.2, .7, .3, 1) both; }
+  .btn { transition: transform .12s ease, background .16s ease, border-color .16s ease, box-shadow .16s ease, opacity .16s ease; }
+  .btn:active:not(:disabled) { transform: scale(.97); }
+  @media (hover: hover) and (pointer: fine) { .btn:hover:not(:disabled) { box-shadow: 0 4px 12px rgba(15, 23, 30, .10); } }
+  #toast:not([hidden]) { animation: moToast .22s cubic-bezier(.2, .7, .3, 1) both; }
+  @media (prefers-reduced-motion: reduce) { .dlg-back, .dlg, div[id^="pg_"], #toast { animation: none !important; } .btn:active:not(:disabled) { transform: none; } }
 </style>
 </style>
 </head>

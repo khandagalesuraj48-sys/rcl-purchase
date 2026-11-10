@@ -485,3 +485,15 @@ test('the pages of Phase 2: Purchase Orders drawn; the CS\'s POs; Make PO; Send 
   if (fs.existsSync(st)) { const sj = fs.readFileSync(st, 'utf8'); assert.strictEqual(/const PCSS = '([^']*)'/.exec(js)[1], /const PCSS = '([^']*)'/.exec(sj)[1], 'the same look as the Store\'s PO paper'); }
   assert.ok(fs.existsSync(path.join(ROOT, 'public/img/rcl-logo.png')), 'the logo he gave (the Store\'s own file)');
 });
+
+test('(10-11-2026, his animation brief) motion – the question box pops in (from 72 %), a page zooms in, a button is pressed in, the message slides in kept centred; transform / opacity only; off with reduced motion', () => {
+  const html = fs.readFileSync(path.join(__dirname, '..', 'public', 'index.html'), 'utf8');
+  const css = html.slice(html.indexOf('(motion – his brief of 10-11-2026'), html.indexOf('</style>', html.indexOf('(motion – his brief of 10-11-2026')));
+  assert.ok(css.length > 800 && html.indexOf('(motion – his brief of 10-11-2026') < html.indexOf('</style>'), 'in the page\'s stylesheet, last');
+  assert.match(css, /\.dlg-back:not\(\[hidden\]\) \.dlg \{ animation: moPop \.26s/);
+  assert.match(css, /@keyframes moPop \{ from \{ opacity: 0; transform: scale\(\.72\); \}/);
+  assert.match(css, /div\[id\^="pg_"\]:not\(\[hidden\]\) \{ animation: moZoomIn \.22s/);
+  assert.match(css, /@keyframes moToast \{ from \{ opacity: 0; transform: translate\(-50%, 10px\); \} to \{ opacity: 1; transform: translate\(-50%, 0\); \} \}/, 'the message stays centred');
+  [...css.matchAll(/@keyframes (\w+) \{([^@]*?)\} \}/g)].forEach(k => assert.doesNotMatch(k[2], /\b(width|height|top|left|margin|padding)\s*:/, k[1] + ': transform / opacity only'));
+  assert.match(css, /@media \(prefers-reduced-motion: reduce\) \{ \.dlg-back, \.dlg, div\[id\^="pg_"\], #toast \{ animation: none !important; \}/);
+});

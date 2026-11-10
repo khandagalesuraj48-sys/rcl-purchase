@@ -18,10 +18,11 @@ site cha data tyatach asel mg old site aso ki new banel tewa pn ani aata jas aah
 |---|---|
 | **Everyone with Purchase** | **Dashboard** – the Purchase Department and the sites where he has Purchase (the site open now marked). |
 | **Everyone with Purchase** (Phase 1) | **Inbox**, **Enquiries**, **Quotations**, **Comparative Statement**, **Suppliers** |
+| **Everyone with Purchase** (Phase 2) | **Purchase Orders** (made from an approved CS; **Cancel PO**: a Purchase Admin / the Super Admin) |
 | **Purchase Admin, Super Admin** | **Waiting for my approval** |
 | **Super Admin** | **Settings** – the CS limit (₹) |
 
-The rest (the purchase order from an approved CS …) comes page by page as he decides it – the plan: the Project doc
+The rest comes page by page as he decides it – the plan: the Project doc
 `architecture/RCL_ERP_Store_Purchase_Audit_Plan.md`. A site's stock, GRN and issue stay in that site's own database (the Store);
 Purchase reads a site's Store and (later) writes into it only through the Store's own server.
 
@@ -68,6 +69,43 @@ The pages (`public/pur.js`):
 sites of the person's sign-in; the question is signed (HMAC-SHA256 with `PUR_STORE_SECRET`, its time – at most 5 minutes off – and a
 nonce used once). Not set: the Inbox says so; nothing is asked.
 
+## Purchase Phase 2 – the purchase order (10-11-2026; database step 3; the Store's step 10)
+His decisions (binding): **D-2** (confirmed again 09-11-2026) – the PO's **master copy is kept here** (the Purchase Supabase, every site in
+one); the **site keeps a copy** in its own Store, written ONLY through the Store's own server (a signed call – the same `PUR_STORE_SECRET`
+as the Inbox; a nonce used once; the time window); an older revision never overwrites a newer one. **G-6** – no extra PO approval after
+the CS's final approval: a PO of an approved CS reaches the site **already approved** (the Store's own PO approval / verification do not
+stop it). **P2** – item-wise award: **one PO a supplier × site** of an approved CS (one CS can give several POs).
+* **Comparative Statement** – an approved CS shows **Purchase orders of CS-…**: each supplier × site of its award, its PO (and its state) or
+  **Make PO** (a Purchase User / Admin of that site, or the Super Admin). The form starts with: today, delivery by (the enquiry's need-by),
+  his quotation's payment terms, the site's **shipping address, site contact and terms as the site's Store has them for its own PO**; the
+  lines as in the CS – qty, rate, Disc. %, GST % (a GST % he did not quote is typed here), the CS's landed rate; freight and loading of his
+  quotation as the CS spreads them (the part of his quoted lines' value these lines are). The money as the company's PO (the Store's):
+  amount = qty × rate less Disc. %, GST on it; total = the lines + freight + loading. Not before the CS's approval, not after today; a
+  supplier Blocked since: no PO. **PO-0001 …** never given twice (`pur_next_no('PO')`).
+* **At once to the site**: the copy is written in the site's Store (`store_po`, "From Purchase – PO-0001", approved, Open, each line with its
+  requirement and line – the site's GRNs and bills are made against it as any PO; what is still to order falls by itself, here and in the
+  Store's HO list). The Store does not take it (it does not answer; its step 10 not run; a rule – e.g. more than asked): the PO stays here as
+  **Not yet at the site** with why – **Send again** (the same copy: sent twice it is one copy).
+* **Purchase Orders** – the list (state: Not yet at the site / At the site / Partly received / Received / Cancelled); a PO in full: its lines
+  with what **came at the site** and the **balance**, every **GRN** made against it there (each bill checked with the PO) – read from the
+  site's Store (signed); **Print** – the company's PO paper (the Store's look: the logo, the site's company heading, Supplier Details, PO
+  Details, Shipping Address, the lines, the totals in figures and words, Terms, Prepared By / Approved By – the CS's approver); **Share on
+  WhatsApp** (a wa.me link with the PO as its text – the person taps it; no e-mail); **Cancel PO** (a Purchase Admin / the Super Admin, why)
+  only while no GRN is made at the site – the site's copy Cancelled first (one at a time with the site's GRN saves); its lines free again in
+  the Inbox. After a GRN: refused, the GRNs named.
+* **Inbox**: a line of an award shows "Awarded" until its PO is made, then the PO ("PO-0001", "· Not yet at the site"); a cancelled PO frees it.
+* **The site**: its Store shows the copy "From Purchase – PO-0001" – read-only (its Store Admin, HO Purchase of the Store, its PO
+  approver: no Change / Cancel / Delete / Close / Approve – refused by the Store's server too).
+* **Not now** (later, as he decides): a PO's amendment / revision by Purchase (the columns are there: `rev`, `history`, the copy's
+  `pur_rev` – the Store refuses a later revision until it is built), delivery follow-up, QC, 3-way match, e-mail; the phone app's screens.
+
+## Database step 3 (once, in the rcl-purchase Supabase → SQL Editor, after step 2)
+`sql/pur_step3_po.sql` – it only adds; it can be run again safely. Result: `Purchase step 3 done · tables 1 of 1`. Table `pur_po` (the PO:
+its number and revision, CS and enquiry, site, supplier as on the day, lines, money, payment terms, address, terms, Open / Cancelled, the
+site's copy – the revision there, its number there, the last send and why it did not get there). For the server only (row level
+security on). Until it is run: no PO is made (the CS says so); the rest as before. With it, **every site's Supabase needs the Store's step
+10** (`rcl-store sql/store_step10_purchase_po.sql`) – until then a PO of that site stays "Not yet at the site" (Send again after it).
+
 ## Database step 2 (once, in the rcl-purchase Supabase → SQL Editor, after step 1)
 `sql/pur_step2_rfq_cs.sql` – it only adds; it can be run again safely. Result: `Purchase step 2 done · tables 4 of 4`.
 Tables: `pur_vendors`, `pur_rfq`, `pur_quote`, `pur_cs` (each row with its site) and the function `pur_next_no(kind)` (RFQ / CS
@@ -79,11 +117,12 @@ run the new pages say so; the Dashboard works as before. Rollback (only while no
 |---|---|
 | The page (dark menu, Dashboard) | `public/index.html` |
 | Phase 1: the pages / every action and its check / the rules / the Inbox from the Store | `public/pur.js`, `api/pur.js`, `lib/rules.js`, `lib/storelink.js` |
+| Phase 2: the purchase order – its page, actions (`poNew`, `poMake`, `poList`, `poGet`, `poSend`, `poCancel`), rules, the signed calls to the Store (`po`), the logo of its paper | `public/pur.js`, `api/pur.js`, `lib/rules.js`, `lib/storelink.js`, `public/img/rcl-logo.png` |
 | Sign-in with the Portal's ticket / who is signed in / sign out | `api/sso.js`, `api/me.js`, `api/logout.js` |
 | The menu for the screen around it (`/menu.json` → `api/menu.js`, per person) | `api/menu.js` |
 | Database, ticket check, sign-ins, activity record, Preview guard | `lib/db.js`, `lib/portal.js`, `lib/session.js`, `lib/activity.js`, `lib/preview.js` |
 | The backup export (only for Mechanical's backup, with the secret) | `api/backup-export.js`, `lib/bkexport.js` |
-| Database (run once in the Purchase Supabase, in this order) | `sql/pur_step1_base.sql`, `sql/pur_step2_rfq_cs.sql` |
+| Database (run once in the Purchase Supabase, in this order) | `sql/pur_step1_base.sql`, `sql/pur_step2_rfq_cs.sql`, `sql/pur_step3_po.sql` |
 
 ## Database step 1 (once, in the rcl-purchase Supabase → SQL Editor)
 `sql/pur_step1_base.sql` – it only adds; it can be run again safely. Result: `Purchase step 1 done · tables 6 of 6`.
@@ -99,7 +138,7 @@ It touches no other database.
 | `PORTAL_URL` | the same value as in the Store and Engineering projects |
 | `PUBLIC_URL` | `https://oneclicksolution-erp.vercel.app/purchase` |
 | `BACKUP_EXPORT_SECRET` | (with Mechanical's update-195) the SAME long secret word as in rclerp, rcl-portal and rcl-engineering. Mechanical's nightly backup asks `/api/backup-export` with it for Purchase's rows (into Purchase's own backup Sheet). Not set = nothing is given. |
-| `PUR_STORE_SECRET` | (Phase 1, 09-11-2026) a long secret word (24 letters or more), the SAME in the Store's Vercel project. Purchase signs its question for the Inbox with it. Not set = the Inbox says the link is not set up. |
+| `PUR_STORE_SECRET` | (Phase 1, 09-11-2026) a long secret word (24 letters or more), the SAME in the Store's Vercel project. Purchase signs its question for the Inbox with it – and (Phase 2) every PO call to a site's Store. Not set = the Inbox says the link is not set up; a PO stays "Not yet at the site". |
 | `STORE_URL` | only if the Store is not at the one address: the Store's address. Not set = `<origin of PUBLIC_URL>/store` (`https://oneclicksolution-erp.vercel.app/store`). An address, not a secret. |
 
 In the Portal (Super Admin): **Modules** → key `purchase`, name `Purchase`, address `https://oneclicksolution-erp.vercel.app/purchase`;
@@ -134,8 +173,12 @@ timeout 300 node test/browser.test.js         # rig + Chromium, after api.test.j
 timeout 300 node test/inmech.test.js          # rig in one-address mode (GATEWAY=1 PORTAL=1 bash rig/all.sh), after api.test.js
 timeout 400 node test/rfqcs.test.js           # (Phase 1) rig, step 2 run in rcl_pur: the whole story – limit, suppliers, Inbox, RFQ, quotations, CS, approval
 timeout 400 node test/rfqcs.browser.test.js   # (Phase 1) rig + Chromium, after api.test.js: the pages; pictures in test/shots/
+timeout 500 node test/po.test.js              # (Phase 2) rig, step 3 here and the Store's step 10 in S1 / T2: the whole story of the POs
+timeout 500 node test/po.browser.test.js      # (Phase 2) rig + Chromium: Make PO, its view, paper, WhatsApp, the Store's page, a phone; test/shots/po_*.png
 ```
 Purchase on the rig: `PORT=3050 SUPABASE_URL=http://127.0.0.1:3110 SUPABASE_SECRET_KEY=<the rig's> PORTAL_URL=http://127.0.0.1:3010 node dev.js`.
 For Phase 1 the rig's Purchase and Store are started with the same made-up `PUR_STORE_SECRET` (and Purchase with
 `STORE_URL=http://127.0.0.1:3020`) in their start command only; `rfqcs.test.js` given the same value also calls the Store's door
-directly (wrong secret, old time, a nonce used twice – refused).
+directly (wrong secret, old time, a nonce used twice – refused). Phase 2: `po.test.js` given the same value calls the Store's PO door
+directly too (an older revision, other figures, a wrong secret / an old time / a nonce twice / the Inbox's signature – refused) and stops /
+starts the rig's Store once ("the Store does not answer"; `STOREDOWN=0` leaves that out).

@@ -6,13 +6,14 @@
 const { handler, send } = require('../lib/http');
 const ses = require('../lib/session');
 // (09-11-2026) Purchase Phase 1: the Inbox, Enquiries, Quotations, the Comparative Statement, Waiting for my approval (a Purchase
-// Admin / the Super Admin), Suppliers, Settings (the Super Admin – the CS limit)
+// Admin / the Super Admin), Suppliers, Settings (the Super Admin – the CS limit); (10-11-2026, Phase 2) Purchase Orders
 const PAGES = [
   { key: 'dashboard', name: 'Dashboard', who: 'all' },
   { key: 'inbox', name: 'Inbox', who: 'all' },
   { key: 'rfq', name: 'Enquiries', who: 'all' },
   { key: 'quotes', name: 'Quotations', who: 'all' },
   { key: 'cs', name: 'Comparative Statement', who: 'all' },
+  { key: 'po', name: 'Purchase Orders', who: 'all' },      // (10-11-2026, Phase 2) the POs of an approved CS – one a supplier × site
   { key: 'approve', name: 'Waiting for my approval', who: 'admin' },
   { key: 'vendors', name: 'Suppliers', who: 'all' },
   { key: 'settings', name: 'Settings', who: 'super' },

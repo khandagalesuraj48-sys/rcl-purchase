@@ -22,7 +22,7 @@ const REQ = (no, st, lines) => "(" + no + ", current_date - 2, current_date + 10
 (async () => {
   if (sql('rcl_portal', "select count(*) from access where module = 'purchase'") === '0') { console.log('Run test/api.test.js first.'); process.exit(1); }
   sql('rcl_portal', "delete from counters; update users set start_item = null where email in ('sujit@rcl.test', 'view@rcl.test');");
-  sql('rcl_pur', "truncate public.pur_cs, public.pur_quote, public.pur_rfq, public.pur_vendors restart identity; delete from public.pur_numbers where kind in ('RFQ', 'CS'); " +
+  sql('rcl_pur', "truncate public.pur_cs, public.pur_quote, public.pur_rfq, public.pur_vendors restart identity cascade; delete from public.pur_numbers where kind in ('RFQ', 'CS'); " +
     "insert into public.pur_settings (site, id, value, updated_by) values ('*', 'cs_limit', '{\"amount\": 50000}', 'sa@rcl.test') on conflict (site, id) do update set value = excluded.value; " +
     "insert into public.pur_vendors (site, name, name_key, gstin, pan, phone, supplies, created_by, created_name, updated_by) values ('*', 'Asha Traders', 'ashatraders', '27ABCDE1234F1Z5', 'ABCDE1234F', '9876543210', '[\"Cement\", \"Steel\"]', 'test', 'Test', 'test'), " +
     "('*', 'Bharat Steel', 'bharatsteel', '', '', '9822012345', '[\"Steel\"]', 'test', 'Test', 'test');");
@@ -53,7 +53,7 @@ const REQ = (no, st, lines) => "(" + no + ", current_date - 2, current_date + 10
     // ---- a Purchase User: the Inbox → an enquiry ----
     const V = await open('view@rcl.test', VPW);
     const menu = await V.evaluate(() => [...document.querySelectorAll('#pur_pages .navbtn')].map(x => x.textContent));
-    ok('a Purchase User\'s menu: Dashboard, Inbox, Enquiries, Quotations, Comparative Statement, Suppliers', menu.join() === 'Dashboard,Inbox,Enquiries,Quotations,Comparative Statement,Suppliers', menu);
+    ok('a Purchase User\'s menu: Dashboard, Inbox, Enquiries, Quotations, Comparative Statement, Purchase Orders (Phase 2), Suppliers', menu.join() === 'Dashboard,Inbox,Enquiries,Quotations,Comparative Statement,Purchase Orders,Suppliers', menu);
     ok('the 🎙 of every typed box is on the page (voice.js – as the Store and Engineering)', await V.evaluate(() => !!window.RclVoice && window.RclVoice.toNumber('साडे तीन हजार') === '3500'));
     ok('the Inbox opens', !!(await page(V, 'inbox')));
     const rows = await until(() => V.evaluate(() => { const t = [...document.querySelectorAll('#in_body tr')].map(r => r.innerText); return t.some(x => /Cement OPC 53/.test(x)) ? t : null; }), 20000);

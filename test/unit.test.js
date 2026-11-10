@@ -63,7 +63,8 @@ test('the page: its script parses; its pages are the menu\'s pages; it opens Pur
   assert.deepStrictEqual(keys, m.PAGES.map(p => p.key));
   keys.forEach(k => assert.ok(html.indexOf('id="pg_' + k + '"') > -1, 'a section for ' + k));
   // (09-11-2026, Purchase Phase 1) a Purchase User: every page but Waiting for my approval and Settings; a Purchase Admin: but Settings
-  const ALL = ['dashboard', 'inbox', 'rfq', 'quotes', 'cs', 'approve', 'vendors', 'settings'];
+  // (10-11-2026, Phase 2) Purchase Orders – for every Purchase person, after the Comparative Statement
+  const ALL = ['dashboard', 'inbox', 'rfq', 'quotes', 'cs', 'po', 'approve', 'vendors', 'settings'];
   assert.deepStrictEqual(m.PAGES.filter(p => m.mayOpen(p.who, 'user')).map(p => p.key), ALL.filter(k => k !== 'approve' && k !== 'settings'), 'user');
   assert.deepStrictEqual(m.PAGES.filter(p => m.mayOpen(p.who, 'admin')).map(p => p.key), ALL.filter(k => k !== 'settings'), 'admin');
   assert.deepStrictEqual(m.PAGES.filter(p => m.mayOpen(p.who, 'super')).map(p => p.key), ALL, 'super');
@@ -364,4 +365,123 @@ test('(09-11-2026, his rule: every typed box gets the voice mic – "the app AND
   assert.ok(page.includes('<script src="voice.js"></script>\n<script src="pur.js"></script>'), 'the page loads it (before its pages)');
   const pp = (JSON.parse(fs.readFileSync(path.join(__dirname, '..', 'vercel.json'), 'utf8')).headers || []).flatMap(h => h.headers || []).find(h => h.key === 'Permissions-Policy').value;
   assert.strictEqual(pp, 'camera=(), microphone=(self), geolocation=()');
+});
+
+/* ---------- (10-11-2026) PURCHASE PHASE 2 – PURCHASE ORDERS ---------- */
+// a CS as Phase 1 makes it: Asha quoted lines 1–4 (freight 200, loading 40), Bharat lines 1–4; lines 1–3 of S1, line 4 of T2
+const P2 = () => { const R = require('../lib/rules');
+  const rfq = { lines: [{ line: 1, site: 'S1', req_no: 9001, req_line: 1, ref: 'R/1', code: 'C1', name: 'Cement', unit: 'Bag', qty: 100 }, { line: 2, site: 'S1', req_no: 9001, req_line: 2, code: 'C2', name: 'TMT', unit: 'Kg', qty: 500 },
+    { line: 3, site: 'S1', req_no: 9001, req_line: 3, code: 'C3', name: 'Wire', unit: 'Kg', qty: 50 }, { line: 4, site: 'T2', req_no: 9001, req_line: 1, code: 'C9', name: 'Filter', unit: 'Nos', qty: 4 }] };
+  const sheet = R.compare(rfq, [{ vendor_id: 1, vendor_name: 'Asha', lines: [{ line: 1, rate: 100, disc: 10, gst: 28 }, { line: 2, rate: 50, gst: 18 }, { line: 3, rate: 60, gst: null }, { line: 4, rate: 900, gst: 18 }], freight: 200, loading: 40, pay_terms: '30 days' },
+    { vendor_id: 2, vendor_name: 'Bharat', lines: [{ line: 1, rate: 85, gst: 28 }, { line: 2, rate: 56, gst: 18 }, { line: 3, rate: 65, gst: 18 }, { line: 4, rate: 950, gst: 18 }] }]);
+  return { R: R, sheet: sheet, award: R.awardL1(sheet) }; };
+
+test('P2 – one PO a supplier × site of an approved CS; its lines and money as the company\'s PO (the Store\'s checkPo); freight and loading as the CS spreads them; a GST % not quoted is typed', () => {
+  const { R, sheet, award } = P2();
+  assert.deepStrictEqual(R.poGroups(sheet, award).map(g => [g.vendor_name, g.site, g.lines.map(L => L.line).join('+')]), [['Asha', 'S1', '2+3'], ['Asha', 'T2', '4'], ['Bharat', 'S1', '1']], 'one CS – three POs');
+  const m = R.poMoney(sheet, award, 1, 'S1', {});
+  assert.deepStrictEqual(m.missing, [3], 'Wire: no GST % in his quotation');
+  assert.deepStrictEqual(m.lines.map(l => [l.line, l.cs_line, l.req_no, l.req_line, l.qty, l.rate, l.disc_pct, l.gst_pct, l.taxable]), [[1, 2, 9001, 2, 500, 50, 0, 18, 25000], [2, 3, 9001, 3, 50, 60, 0, null, 3000]]);
+  const base = 90 * 100 + 50 * 500 + 60 * 50 + 900 * 4, mine = 50 * 500 + 60 * 50;
+  assert.strictEqual(m.freight, R.r2(200 * mine / base)); assert.strictEqual(m.loading, R.r2(40 * mine / base));
+  const t = R.poMoney(sheet, award, 1, 'S1', { 3: '18' });
+  assert.deepStrictEqual([t.missing, t.lines[1].gst_pct, t.gst, t.total], [[], 18, R.r2(25000 * 0.18 + 3000 * 0.18), R.r2(28000 + 5040 + t.freight + t.loading)]);
+  assert.throws(() => R.poMoney(sheet, award, 1, 'S1', { 3: '41' }), /from 0 to 40/);
+  // all his quoted lines in one PO: the whole freight and loading; the landed rate of the CS kept on the line
+  const one = R.awardOf(sheet, { 1: { vendor: 1, reason: 'one supplier' }, 2: { vendor: 1 }, 3: { vendor: 1 }, 4: { vendor: 1 } }, '').award;
+  const s1 = R.poMoney(sheet, one, 1, 'S1', { 3: 18 }), t2 = R.poMoney(sheet, one, 1, 'T2', {});
+  assert.ok(s1.freight + t2.freight > 199.98 && s1.freight + t2.freight < 200.02, 'split by value over his two sites');
+  assert.strictEqual(R.poMoney(sheet, { 1: { vendor: 2 } }, 2, 'S1', {}).freight, 0, 'Bharat gave no freight');
+  assert.strictEqual(m.lines[0].landed, sheet.lines[1].q[1].landed);
+  // the same money as the Store's own PO (rcl-store lib/work.js checkPo – next to this repository, on its branch)
+  const sw = path.join(ROOT, '..', 'rcl-store', 'lib', 'work.js');
+  if (fs.existsSync(sw)) {
+    const W = require(sw), items = { C2: { code: 'C2', name: 'TMT', unit: 'Kg', gst_pct: 0, status: 'Active' }, C3: { code: 'C3', name: 'Wire', unit: 'Kg', gst_pct: 5, status: 'Active' } };
+    const reqs = { 9001: { no: 9001, status: 'Approved', lines: [{ line: 2, code: 'C2' }, { line: 3, code: 'C3' }] } };
+    const c = R.poCopy(Object.assign({}, t, { no: 7, rev: 1, cs_no: 1, rfq_no: 1, date: R.today(), vendor: { name: 'Asha', gstin: '27ABCDE1234F1Z5' }, ship_to: 'Site', cs: {} }), { email: 'a@x', name: 'A' });
+    const w = W.checkPo({ date: c.date, vendor: c.vendor.name, vendor_gst: c.vendor.gstin, freight: c.freight, load_unload: c.loading, lines: c.lines }, items, { reqs: reqs });
+    assert.deepStrictEqual([w.taxable, w.gst, w.total], [c.totals.taxable, c.totals.gst, c.totals.total], 'the Store works out the same figures');
+    assert.deepStrictEqual(w.lines.map(l => [l.req_no, l.req_line, l.gst_pct]), [[9001, 2, 18], [9001, 3, 18]], 'each line its requirement and line, its GST %');
+  }
+});
+
+test('the PO\'s head (date not after today nor before its CS\'s approval, delivery after it, the shipping address); its state; the copy; the Inbox: "Awarded" → the PO, a cancelled PO frees its lines', () => {
+  const { R, sheet, award } = P2(), t = R.today();
+  assert.throws(() => R.checkPoHead({ date: t, ship_to: 'S' }), /shipping address/);
+  assert.throws(() => R.checkPoHead({ date: '2026-01-02', ship_to: 'Site office' }, { approved: '2026-01-05' }), /before its CS was approved/);
+  assert.throws(() => R.checkPoHead({ date: t, need_by: '2020-02-01', ship_to: 'Site office' }), /before the PO date/);
+  const h = R.checkPoHead({ date: t, ship_to: 'Site office\n\n  Bhiwandi ', terms: '1. A\n2. B', pay_terms: ' 30  days ' });
+  assert.deepStrictEqual([h.ship_to, h.terms, h.pay_terms], ['Site office\nBhiwandi', '1. A\n2. B', '30 days'], 'the lines kept');
+  assert.strictEqual(R.poState({ status: 'Cancelled' }), 'Cancelled');
+  assert.strictEqual(R.poState({ status: 'Open', rev: 1, sent_rev: null }), 'Not yet at the site');
+  assert.deepStrictEqual(['Open', 'Part received', 'Received', 'Closed', undefined].map(st => R.poState({ status: 'Open', rev: 1, sent_rev: 1 }, st ? { state: st } : null)), ['At the site', 'Partly received', 'Received', 'Closed at the site', 'At the site']);
+  assert.strictEqual(R.poNoOf(12), 'PO-0012'); assert.strictEqual(R.inWords(225699), 'Two Lakhs Twenty Five Thousand Six Hundred and Ninety Nine Only');
+  const c = R.poCopy({ no: 3, rev: 1, cs_no: 1, rfq_no: 2, date: t, vendor: { name: 'Asha' }, lines: [{ code: 'C2', qty: 5, rate: 1, disc_pct: 0, gst_pct: 18, req_no: 9001, req_line: 2, name: 'x' }], taxable: 5, gst: 0.9, total: 5.9, cs: { by: 'ad@x', name: 'Admin', at: 'T' } }, { email: 'u@x', name: 'U' });
+  assert.deepStrictEqual([c.pur_no, c.rev, c.ref, c.lines[0].req_no, c.lines[0].req_line, c.cs.ref, c.cs.approved_name, c.rfq.ref, c.by.email], [3, 1, 'PO-0003', 9001, 2, 'CS-0001', 'Admin', 'RFQ-0002', 'u@x']);
+  // the Inbox: lines of an awarded CS – "Awarded"; its PO made – the PO (sent or not); cancelled – free
+  const rfqs = [{ no: 1, status: 'Closed', lines: [{ line: 1, site: 'S1', req_no: 9001, req_line: 1 }, { line: 2, site: 'S1', req_no: 9001, req_line: 2 }, { line: 4, site: 'T2', req_no: 9001, req_line: 1 }] }];
+  const cs = { 1: { no: 5, status: 'Approved', award: award } };
+  let tk = R.takenOfPo(rfqs, cs, {});
+  assert.deepStrictEqual(Object.values(tk).map(x => x.status), ['Awarded', 'Awarded', 'Awarded']);
+  tk = R.takenOfPo(rfqs, cs, { 5: [{ no: 1, vendor_id: 1, site: 'S1', status: 'Open', rev: 1, sent_rev: 1 }, { no: 2, vendor_id: 2, site: 'S1', status: 'Open', rev: 1, sent_rev: null }, { no: 3, vendor_id: 1, site: 'T2', status: 'Cancelled', rev: 1, sent_rev: 1 }] });
+  assert.deepStrictEqual([tk['S1:9001:1'].status, tk['S1:9001:1'].sent, tk['S1:9001:2'].status, tk['S1:9001:2'].sent, tk['T2:9001:1']], ['PO-0002', false, 'PO-0001', true, undefined]);
+  // the freed line asked again in a new enquiry: that enquiry has it (the award of before does not take it back)
+  const again = rfqs.concat([{ no: 9, status: 'Sent', lines: [{ line: 1, site: 'T2', req_no: 9001, req_line: 1 }] }]);
+  tk = R.takenOfPo(again, cs, { 5: [{ no: 3, vendor_id: 1, site: 'T2', status: 'Cancelled', rev: 1, sent_rev: 1 }] });
+  assert.deepStrictEqual([tk['T2:9001:1'].rfq, tk['T2:9001:1'].status, tk['S1:9001:1'].status], [9, 'Sent', 'Awarded']);
+});
+
+test('database step 3: only adds (one table), the server only, the header as steps 1 and 2, "tables 1 of 1"; the PO actions write pur_activity; step 3 named when missing', () => {
+  const sql = fs.readFileSync(path.join(ROOT, 'sql/pur_step3_po.sql'), 'utf8'), body = sql.split('\n').filter(l => !/^\s*--/.test(l)).join('\n');
+  const acts = body.split('\n').filter(l => !/\bgrant select, insert, update, delete on\b/.test(l)).join('\n');
+  assert.ok(!/\bdrop\b|\btruncate\b|\bdelete\b|\bupdate\b|\binsert\b|\balter\s+table\s+public\.\w+\s+(drop|alter|add)/i.test(acts), 'only adds');
+  assert.ok(/create table if not exists public\.pur_po \(/.test(body) && /\bsite text not null/.test(body) && /unique \(cs_no, vendor_id, site\)/.test(body), 'one PO a supplier × site of a CS; it carries its site');
+  assert.ok(/alter table public\.pur_po enable row level security;/.test(body) && /revoke all on public\.pur_po from public, anon, authenticated;/.test(body));
+  assert.ok(/' of 1' as done;/.test(body) && /Purchase step 3 done · tables /.test(body));
+  ['Run ONCE in the Purchase Supabase project', 'It can be run again safely: it only ADDS', 'Rollback (only while no PO is made)', 'Written fresh for RCL', 'D-2', 'G-6'].forEach(h => assert.ok(sql.indexOf(h) > -1, h));
+  const src = fs.readFileSync(path.join(ROOT, 'api/pur.js'), 'utf8');
+  assert.ok(/sql\/pur_step3_po\.sql once in the rcl-purchase Supabase/.test(src) && /\/\^po\[A-Z\]\/\.test\(a\) \? fail\(500, STEP3, 'step3'\)/.test(src));
+  const act = n => { const i = src.indexOf('  async ' + n + '(s'); assert.ok(i > -1, n); return src.slice(i, src.indexOf('\n  },', i)); };
+  ['poMake', 'poCancel'].forEach(n => assert.ok(/await activity\(/.test(act(n)), n + ' writes pur_activity'));
+  assert.ok(/await activity\(p\.site, s\.email, ok \? \(again \? 'PO sent again' : 'PO sent to the site'\) : 'PO not yet at the site'/.test(src), 'every send – taken or not – written');
+  assert.ok(/if \(!isAdmin\(s\)\) throw fail\(403, 'Only a Purchase Admin or the Super Admin cancels a PO\.'/.test(act('poCancel')), 'cancel: a Purchase Admin / the Super Admin');
+  assert.ok(/if \(!mayAll\(s, \[p\.site\]\)\) throw fail\(403/.test(src) && /mayAll\(s, \[site\]\)/.test(src), 'only his sites');
+});
+
+test('the link to the Store for the POs: the same secret, another text ("rcl-pur-po" – never taken for the Inbox\'s), the data signed as sent; the Store\'s no comes back as it said it', async () => {
+  const L = require('../lib/storelink'), env = { s: process.env.PUR_STORE_SECRET, u: process.env.STORE_URL }, f0 = global.fetch, k = 'k'.repeat(30);
+  let answer = { status: 200, j: { ok: true, no: 4, result: 'made' } }; const sent = [];
+  global.fetch = async (url, o) => { sent.push({ url: String(url), body: JSON.parse(o.body) }); return new Response(JSON.stringify(answer.j), { status: answer.status }); };
+  try {
+    delete process.env.PUR_STORE_SECRET; await assert.rejects(L.po('put', {}), e => e.code === 'link'); assert.strictEqual(sent.length, 0);
+    process.env.PUR_STORE_SECRET = k; process.env.STORE_URL = 'http://127.0.0.1:3020';
+    const r = await L.po('put', { site: 'S1', po: { pur_no: 4 } }), b = sent[0].body;
+    assert.deepStrictEqual([sent[0].url, b.v, b.op, typeof b.data, JSON.parse(b.data).po.pur_no, r.no], ['http://127.0.0.1:3020/api/purpo', 1, 'put', 'string', 4, 4]);
+    assert.strictEqual(b.sig, crypto.createHmac('sha256', k).update('rcl-pur-po|v1|put|' + b.ts + '|' + b.nonce + '|' + b.data).digest('hex'));
+    answer = { status: 409, j: { error: 'Material of this PO has come at site S1', code: 'received', grns: ['5'] } };
+    await assert.rejects(L.po('cancel', {}), e => e.status === 409 && e.code === 'store_received' && /The Store: Material/.test(e.message) && e.extra.grns[0] === '5');
+    answer = { status: 401, j: { error: 'Refused (the signature does not match).', code: 'sig' } }; await assert.rejects(L.po('state', {}), e => e.code === 'link');
+    answer = { status: 503, j: { error: 'No answer from the database', code: 'net' } }; await assert.rejects(L.po('put', {}), e => e.status === 503 && e.code === 'store');
+    global.fetch = async () => { throw new Error('ECONNREFUSED'); }; await assert.rejects(L.po('put', {}), e => e.code === 'store' && /did not answer/.test(e.message));
+    // the Store's own check (rcl-store next to this one): what Purchase signs is taken; the Inbox's text is not
+    const sp = path.join(ROOT, '..', 'rcl-store', 'api', 'purpo.js');
+    if (fs.existsSync(sp)) {
+      const S = require(sp);
+      assert.deepStrictEqual(S.check(b, k, b.ts + 1000).data.po, { pur_no: 4 });
+      assert.strictEqual(S.textOf('put', 1, 'n', '{}'), L.poText('put', 1, 'n', '{}'), 'the same text signed on both sides');
+      assert.throws(() => S.check(Object.assign({}, b, { sig: L.sign(k, b.ts, b.nonce, ['S1']) }), k, b.ts), e => e.status === 401 && e.code === 'sig', 'the Inbox\'s signature is not a PO\'s');
+    }
+  } finally { global.fetch = f0; [['PUR_STORE_SECRET', env.s], ['STORE_URL', env.u]].forEach(([n, v]) => { if (v === undefined) delete process.env[n]; else process.env[n] = v; }); }
+});
+
+test('the pages of Phase 2: Purchase Orders drawn; the CS\'s POs; Make PO; Send again; Cancel PO; the PO\'s paper (the Store\'s look) and Share on WhatsApp (no e-mail)', () => {
+  const js = fs.readFileSync(path.join(ROOT, 'public/pur.js'), 'utf8');
+  assert.doesNotThrow(() => new Function(js));
+  assert.ok(/\bpo: poPage\b/.test(/window\.RPW = \{ open: page => \(\{([^}]*)\}/.exec(js)[1]));
+  ['poNew', 'poMake', 'poList', 'poGet', 'poSend', 'poCancel'].forEach(a => assert.ok(js.indexOf("P('" + a + "'") > -1, a));
+  assert.ok(/const waPo = r => 'https:\/\/wa\.me\/' \+ \(r\.po\.wa \|\| ''\) \+ '\?text=' \+ encodeURIComponent\(waPoText\(r\)\);/.test(js) && !/mailto:/.test(js));
+  ['Supplier Details', 'PO Details', 'Shipping Address', 'Item Description- Specification', 'Total Disc. Amount', 'TOTAL AMOUNT (Rs.)', 'Amount in word :', 'Terms And Conditions:', 'This Purchase Order is computer generated it does not require signature.'].forEach(t => assert.ok(js.indexOf(t) > -1, t));
+  const st = path.join(ROOT, '..', 'rcl-store', 'public', 'work.js');
+  if (fs.existsSync(st)) { const sj = fs.readFileSync(st, 'utf8'); assert.strictEqual(/const PCSS = '([^']*)'/.exec(js)[1], /const PCSS = '([^']*)'/.exec(sj)[1], 'the same look as the Store\'s PO paper'); }
+  assert.ok(fs.existsSync(path.join(ROOT, 'public/img/rcl-logo.png')), 'the logo he gave (the Store\'s own file)');
 });

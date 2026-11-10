@@ -148,6 +148,12 @@
   table.cs tfoot td { background: #FAFBFC; font-size: 13.5px; }
   table.cs td select { min-width: 170px; }
   #rf_view a.btn { text-decoration: none; }
+  /* (10-11-2026) Purchase Phase 2 (public/pur.js): the purchase order – its form, its view, its state */
+  #po_view a.btn { text-decoration: none; }
+  td input.num.gst { width: 80px; } tr.tot td { font-weight: 700; background: #FAFBFC; }
+  b.bal { color: #B45309; } b.bal0 { color: var(--good); }
+  .kv { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 4px 18px; margin: 8px 0; font-size: 14px; } .kv div small { display: block; color: var(--muted); font-weight: 600; font-size: 12px; }
+  .kv .pre { white-space: pre-line; }
   @media print { .side, .topbar, .noprint { display: none !important; } main { padding: 0; max-width: none; } .panel { break-inside: avoid; border: 0; } }
   /* INSIDE ANOTHER MODULE'S SCREEN (Mechanical shows this page in its middle part – its own menu, top bar and Logout are there) */
   html.embed, html.embed body { background: transparent; }
@@ -197,6 +203,7 @@
       <div id="pg_rfq" hidden></div>
       <div id="pg_quotes" hidden></div>
       <div id="pg_cs" hidden></div>
+      <div id="pg_po" hidden></div>
       <div id="pg_approve" hidden></div>
       <div id="pg_vendors" hidden></div>
       <div id="pg_settings" hidden></div>
@@ -264,8 +271,9 @@
   let PORTAL = '';
   // (09-11-2026) Purchase Phase 1: Inbox, Enquiries, Quotations, Comparative Statement, Waiting for my approval (Admin / Super Admin),
   // Suppliers, Settings (the Super Admin) – drawn by pur.js
-  const PAGES = { dashboard: 'Dashboard', inbox: 'Inbox', rfq: 'Enquiries', quotes: 'Quotations', cs: 'Comparative Statement', approve: 'Waiting for my approval', vendors: 'Suppliers', settings: 'Settings' };
-  const WHO = { dashboard: 'all', inbox: 'all', rfq: 'all', quotes: 'all', cs: 'all', approve: 'admin', vendors: 'all', settings: 'super' };
+  // (10-11-2026) Purchase Phase 2: Purchase Orders – the POs of an approved CS (one a supplier × site), each with its GRNs at the site
+  const PAGES = { dashboard: 'Dashboard', inbox: 'Inbox', rfq: 'Enquiries', quotes: 'Quotations', cs: 'Comparative Statement', po: 'Purchase Orders', approve: 'Waiting for my approval', vendors: 'Suppliers', settings: 'Settings' };
+  const WHO = { dashboard: 'all', inbox: 'all', rfq: 'all', quotes: 'all', cs: 'all', po: 'all', approve: 'admin', vendors: 'all', settings: 'super' };
   const isSuper = () => S.me && S.me.user.role === 'super';
   const isAdmin = () => S.me && (S.me.user.role === 'super' || S.me.user.role === 'admin');
   const mayOpen = p => WHO[p] === 'all' || (WHO[p] === 'admin' && isAdmin()) || (WHO[p] === 'super' && isSuper());
@@ -274,6 +282,7 @@
     rfq: '<path d="m22 2-7 20-4-9-9-4Z"/><path d="M22 2 11 13"/>',
     quotes: '<path d="M14 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"/><path d="M14 3v6h6"/><path d="M8 13h8"/><path d="M8 17h5"/>',
     cs: '<rect x="3" y="3" width="18" height="18" rx="2"/><path d="M9 3v18"/><path d="M15 3v18"/>',
+    po: '<path d="M6 2h9l5 5v15H6z"/><path d="M14 2v6h6"/><path d="m9 15 2 2 4-4"/>',
     approve: '<circle cx="12" cy="12" r="9"/><path d="m8 12 3 3 5-6"/>',
     vendors: '<path d="M3 7h11v9H3z"/><path d="M14 10h4l3 3v3h-7"/><circle cx="7" cy="18" r="2"/><circle cx="17" cy="18" r="2"/>',
     settings: '<path d="M4 21v-7"/><path d="M4 10V3"/><path d="M12 21v-9"/><path d="M12 8V3"/><path d="M20 21v-5"/><path d="M20 12V3"/><path d="M1 14h6"/><path d="M9 8h6"/><path d="M17 16h6"/>' };

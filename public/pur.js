@@ -1,4 +1,7 @@
-/* PURCHASE PHASE 1 – the pages (09-11-2026): Inbox (the sites' approved requirement lines still to order – from the Store), Enquiries
+/* (10-11-2026) PURCHASE PHASE 2 – Purchase Orders: from an approved CS (one a supplier × site), its copy sent at once to the site's
+ * Store ("Not yet at the site" – Send again), its view with the site's GRNs and balance, its print (the company's PO paper – the Store's
+ * look), Share on WhatsApp (a link the person taps), Cancel (why – only while no GRN is made at the site).
+ * PURCHASE PHASE 1 – the pages (09-11-2026): Inbox (the sites' approved requirement lines still to order – from the Store), Enquiries
  * (RFQ: made from the Inbox, the suppliers asked, its print and "Share on WhatsApp" – no e-mail), Quotations (each supplier's, typed as he
  * gave it), Comparative Statement (side by side WITHOUT GST, GST beside, L1 marked, the award line by line), Waiting for my approval,
  * Suppliers, Settings (the Super Admin's CS limit). Written fresh for RCL. The same look and sign-in as the Dashboard (index.html gives
@@ -20,20 +23,25 @@
   const rfqRef = n => 'RFQ-' + String(n).padStart(4, '0'), csRef = n => 'CS-' + String(n).padStart(4, '0');
   const key = (site, req, line) => site + ':' + req + ':' + line;
   const numOf = v => { const s = String(v === undefined || v === null ? '' : v).trim().replace(/,/g, ''); return s === '' ? null : Number(s); };
-  const TAG = { Draft: 'off', Sent: 'blue', 'Quotes in': 'warn', Closed: '', Cancelled: 'bad', Approved: '', 'Sent back': 'warn', Rejected: 'bad', Blocked: 'bad', Awarded: '' };
+  const TAG = { Draft: 'off', Sent: 'blue', 'Quotes in': 'warn', Closed: '', Cancelled: 'bad', Approved: '', 'Sent back': 'warn', Rejected: 'bad', Blocked: 'bad', Awarded: '',
+    'Not yet at the site': 'warn', 'At the site': 'blue', 'Partly received': 'warn', Received: '', 'Closed at the site': 'off', 'Cancelled at the site': 'bad' };      // (10-11-2026) a PO's state
   const tag = st => '<span class="tag ' + (TAG[st] || '') + '">' + esc(st) + '</span>';
   const errbox = t => '<div class="errbox">' + esc(t) + '</div>';
-  const ST = { pick: new Map(), rfqForm: null, rfqNo: 0, q: { rfq: 0, vendor: 0 }, cs: { rfq: 0 }, vForm: null, vendors: null };
+  const ST = { pick: new Map(), rfqForm: null, rfqNo: 0, q: { rfq: 0, vendor: 0 }, cs: { rfq: 0 }, vForm: null, vendors: null, poNo: 0, poForm: null };
   // a page's frame, made once
   function frame(page, html) { const s = $('pg_' + page); if (!s.dataset.ready) { s.innerHTML = html; s.dataset.ready = '1'; } return s; }
   // a paper printed (an A4 page made here – the page itself is not printed; as the Store's papers)
-  function printHtml(title, html) {
+  function printHtml(title, html, raw) {
     const f = document.createElement('iframe'); f.style.cssText = 'position:fixed;right:0;bottom:0;width:0;height:0;border:0'; document.body.appendChild(f);
     const d = f.contentWindow.document;
-    d.open(); d.write('<!doctype html><html><head><meta charset="utf-8"><title>' + esc(title) + '</title><style>@page{size:A4 portrait;margin:12mm}body{font:12px Arial,sans-serif;color:#000}h1{font-size:18px;margin:0}h2{font-size:15px;margin:10px 0 4px}' +
-      'table{border-collapse:collapse;width:100%;margin-top:8px}th,td{border:1px solid #444;padding:4px 6px;text-align:left;vertical-align:top}th{background:#eee}td.n,th.n{text-align:right}.muted{color:#555}.hd{display:flex;justify-content:space-between;gap:12px;border-bottom:2px solid #000;padding-bottom:6px;margin-bottom:8px}.pg{page-break-after:always}.pg:last-child{page-break-after:auto}.sign{margin-top:36px;text-align:right}</style></head><body>' + html + '</body></html>');
+    d.open(); d.write('<!doctype html><html><head><meta charset="utf-8"><title>' + esc(title) + '</title><style>@page{size:A4 portrait;margin:12mm}body{font:12px Arial,sans-serif;color:#000}' + (raw ? '' : 'h1{font-size:18px;margin:0}h2{font-size:15px;margin:10px 0 4px}' +
+      'table{border-collapse:collapse;width:100%;margin-top:8px}th,td{border:1px solid #444;padding:4px 6px;text-align:left;vertical-align:top}th{background:#eee}td.n,th.n{text-align:right}.muted{color:#555}.hd{display:flex;justify-content:space-between;gap:12px;border-bottom:2px solid #000;padding-bottom:6px;margin-bottom:8px}.pg{page-break-after:always}.pg:last-child{page-break-after:auto}.sign{margin-top:36px;text-align:right}') + '</style></head><body>' + html + '</body></html>');
     d.close();
-    setTimeout(() => { try { f.contentWindow.focus(); f.contentWindow.print(); } catch (e) { toast('Could not print here.', true); } setTimeout(() => f.remove(), 60000); }, 250);
+    // (10-11-2026) the paper's pictures (the logo) first – 8 s at most
+    const imgs = [...d.images].filter(i => !i.complete), go = () => setTimeout(() => { try { f.contentWindow.focus(); f.contentWindow.print(); } catch (e) { toast('Could not print here.', true); } setTimeout(() => f.remove(), 60000); }, 250);
+    if (!imgs.length) return go();
+    let left = imgs.length, done = false; const one = () => { if (!done && --left <= 0) { done = true; go(); } };
+    imgs.forEach(i => { i.addEventListener('load', one); i.addEventListener('error', one); }); setTimeout(() => { if (!done) { done = true; go(); } }, 8000);
   }
 
   /* ====================== INBOX – the approved requirement lines of his sites still to order ====================== */
@@ -52,12 +60,12 @@
       return '<section class="panel"><h2>' + esc(st.name) + ' <span class="sidebadge">' + esc(st.site) + '</span></h2>' +
         (st.own ? '<p class="muted">This site buys its requirements itself (Portal → Workflow: not to Head Office) – none of them comes here.</p>' : '') + (st.error ? (/^No Store at this site/.test(st.error) ? '<p class="muted">' + esc(st.error) + '</p>' : errbox(st.error)) : '') +
         (!st.own && !st.error && !n ? '<p class="empty">Nothing to order – every approved requirement is ordered.</p>' : '') +
-        (n ? '<div class="tw"><table><thead><tr><th></th><th>Indent No.</th><th>Item</th><th>Brand / Specification</th><th class="n">To order</th><th>Need by</th><th>Waiting since</th><th>Made by</th><th>Enquiry</th></tr></thead><tbody>' +
+        (n ? '<div class="tw"><table><thead><tr><th></th><th>Indent No.</th><th>Item</th><th>Brand / Specification</th><th class="n">To order</th><th>Need by</th><th>Waiting since</th><th>Made by</th><th>Enquiry / PO</th></tr></thead><tbody>' +
           st.reqs.map(q => q.lines.map(l => { const k = key(st.site, q.no, l.line), t = l.taken;
             return '<tr' + (t ? ' class="off"' : '') + '><td>' + (t ? '' : '<input type="checkbox" data-k="' + esc(k) + '"' + (ST.pick.has(k) ? ' checked' : '') + ' aria-label="Pick ' + esc(l.name) + '">') + '</td>' +
               '<td>' + esc(q.ref) + '<small>' + esc(q.for_kind + (q.for_text ? ' – ' + q.for_text : '')) + '</small></td><td class="nm">' + esc(l.name) + '<small>' + esc(l.code) + '</small></td>' +
               '<td class="wrap">' + esc([l.brand, l.spec].filter(Boolean).join(' · ')) + '</td><td class="n"><b>' + n3(l.left) + '</b> ' + esc(l.unit) + (Number(l.ordered) ? '<small>of ' + n3(l.qty) + ' · ordered ' + n3(l.ordered) + '</small>' : '') + '</td>' +
-              '<td>' + dmy(q.need_by) + '</td><td>' + dmy(q.since) + '</td><td>' + esc(q.made_by) + '</td><td>' + (t ? '<span class="tag ' + (t.status === 'Awarded' ? '' : 'warn') + '">' + esc(rfqRef(t.rfq)) + ' · ' + esc(t.status) + '</span>' : '') + '</td></tr>'; }).join('')).join('') +
+              '<td>' + dmy(q.need_by) + '</td><td>' + dmy(q.since) + '</td><td>' + esc(q.made_by) + '</td><td>' + (t ? '<span class="tag ' + (t.status === 'Awarded' || (t.po && t.sent) ? '' : 'warn') + '">' + (t.po ? esc(t.status) + (t.sent ? '' : ' · Not yet at the site') : esc(rfqRef(t.rfq)) + ' · ' + esc(t.status)) + '</span>' : '') + '</td></tr>'; }).join('')).join('') +
           '</tbody></table></div>' : '') + '</section>';
     }).join('') || '<p class="empty">You have Purchase on no site with a Store.</p>';
     bar();
@@ -91,7 +99,7 @@
     const r = await P('rfqList', { status: $('rf_st').value || undefined });
     $('rf_list').innerHTML = r.rfqs.length ? '<div class="tw"><table><thead><tr><th>RFQ No.</th><th>Date</th><th>Need by</th><th>Items</th><th class="n">Lines</th><th>Suppliers</th><th class="n">Quotations</th><th>CS</th><th>Status</th><th></th></tr></thead><tbody>' +
       r.rfqs.map(q => '<tr><td><b>' + esc(q.ref) + '</b><small>' + esc(q.sites.join(', ')) + '</small></td><td>' + dmy(q.date) + '</td><td>' + dmy(q.need_by) + '</td><td class="wrap">' + esc(q.items) + '</td><td class="n">' + q.nlines + '</td>' +
-        '<td class="wrap">' + esc(q.vendors.map(v => v.name).join(', ')) + '</td><td class="n">' + q.quotes + ' of ' + q.vendors.length + '</td><td>' + (q.cs ? esc(q.cs.ref) + ' ' + tag(q.cs.status) : '') + '</td><td>' + tag(q.status) + '</td>' +
+        '<td class="wrap">' + esc(q.vendors.map(v => v.name).join(', ')) + '</td><td class="n">' + q.quotes + ' of ' + q.vendors.length + '</td><td>' + (q.cs ? esc(q.cs.ref) + ' ' + tag(q.cs.status) + ((q.cs.pos || []).length ? '<small>' + esc(q.cs.pos.join(', ')) + '</small>' : '') : '') + '</td><td>' + tag(q.status) + '</td>' +
         '<td><button type="button" class="link" data-act="rfOpen" data-no="' + q.no + '">Open</button></td></tr>').join('') + '</tbody></table></div>' : '<p class="empty">No enquiry yet – make one from the Inbox.</p>';
   }
   async function rfqOpen(no) {
@@ -217,7 +225,7 @@
       '<b>L1</b> = the lowest landed rate of a line. Each line is given to its own supplier; one not L1 needs a reason. <span class="mr">GST शिवाय तुलना; L1 = सर्वात कमी दर.</span></p>' +
       '<div class="bar"><div class="field grow"><label for="cs_rfq">Enquiry</label><select id="cs_rfq"></select></div></div></section><div id="cs_body"></div>');
     const l = (await P('rfqList')).rfqs.filter(q => q.quotes > 0 || q.cs || q.no === ST.cs.rfq);
-    $('cs_rfq').innerHTML = '<option value="">– pick an enquiry –</option>' + l.map(q => '<option value="' + q.no + '"' + (q.no === ST.cs.rfq ? ' selected' : '') + '>' + esc(q.ref + ' · ' + q.items + (q.cs ? ' · ' + q.cs.ref + ' ' + q.cs.status : ' · ' + q.quotes + ' quotation' + (q.quotes === 1 ? '' : 's'))) + '</option>').join('');
+    $('cs_rfq').innerHTML = '<option value="">– pick an enquiry –</option>' + l.map(q => '<option value="' + q.no + '"' + (q.no === ST.cs.rfq ? ' selected' : '') + '>' + esc(q.ref + ' · ' + q.items + (q.cs ? ' · ' + q.cs.ref + ' ' + q.cs.status + ((q.cs.pos || []).length ? ' · ' + q.cs.pos.join(', ') : '') : ' · ' + q.quotes + ' quotation' + (q.quotes === 1 ? '' : 's'))) + '</option>').join('');
     if (!ST.cs.rfq) { $('cs_body').innerHTML = l.length ? '' : '<p class="empty">No enquiry has a quotation yet.</p>'; return; }
     csDraw(await P('csGet', { rfq: ST.cs.rfq }));
   }
@@ -254,8 +262,10 @@
       (c.may.decide ? '<button type="button" class="btn primary" data-act="csDec" data-d="approve">Approve</button><button type="button" class="btn" data-act="csDec" data-d="back">Send back</button><button type="button" class="btn bad" data-act="csDec" data-d="reject">Reject</button>' : '') +
       '<button type="button" class="btn" data-act="csPrint">Print</button></div>' +
       (c.status === 'Sent' && !c.may.decide ? '<p class="muted">Waiting for ' + esc(needText(c.need, c.site, c.cs_limit)) + '. ' + esc(c.may.why) + '</p>' : '') +
-      ((c.trail || []).length ? '<h3>Decisions</h3><div class="tw"><table><thead><tr><th>When</th><th>Who</th><th>What</th><th class="n">Total</th><th>Why</th></tr></thead><tbody>' + c.trail.map(t => '<tr><td>' + dmyAt(t.at) + '</td><td>' + esc(t.name || t.by) + '</td><td>' + tag(t.act) + '</td><td class="n">' + money(t.total) + '</td><td class="wrap">' + esc(t.why || '') + '</td></tr>').join('') + '</tbody></table></div>' : '') + '</section>';
+      ((c.trail || []).length ? '<h3>Decisions</h3><div class="tw"><table><thead><tr><th>When</th><th>Who</th><th>What</th><th class="n">Total</th><th>Why</th></tr></thead><tbody>' + c.trail.map(t => '<tr><td>' + dmyAt(t.at) + '</td><td>' + esc(t.name || t.by) + '</td><td>' + tag(t.act) + '</td><td class="n">' + money(t.total) + '</td><td class="wrap">' + esc(t.why || '') + '</td></tr>').join('') + '</tbody></table></div>' : '') + '</section>' +
+      (r.po ? csPos(r) : '');
     csLive();
+    if (ST.poForm && r.po && ST.poForm.cs.no === c.no) poFormDraw();
   }
   // the award as chosen on the page: the total, the GST, who approves and what still stops it (the server checks it all again)
   function csAward() {
@@ -287,6 +297,128 @@
       '</tbody></table><p><b>Total without GST: ' + money(c.total) + '</b> · GST: ' + money(c.gst) + '</p>' + (c.few_reason ? '<p>Fewer than 2 quotations: ' + esc(c.few_reason) + '</p>' : '') +
       (c.trail || []).map(t => '<div>' + esc(t.act) + ' – ' + esc(t.name || t.by) + ' · ' + dmyAt(t.at) + (t.why ? ' · ' + esc(t.why) : '') + '</div>').join(''));
   }
+
+  /* ====================== (10-11-2026) PURCHASE ORDERS – from an approved CS, one a supplier × site ====================== */
+  const poRef = n => 'PO-' + String(n).padStart(4, '0');
+  // an approved CS: each supplier × site of its award – its PO, or Make PO
+  function csPos(r) {
+    const P0 = r.po, c = r.cs;
+    if (!P0.step3) return '<section class="panel" id="cs_pos"><h2>Purchase orders</h2>' + errbox('Purchase\'s database step 3 is not run yet: the Super Admin runs sql/pur_step3_po.sql once in the rcl-purchase Supabase → SQL Editor. Until then no PO is made.') + '</section>';
+    return '<section class="panel" id="cs_pos"><h2>Purchase orders of ' + esc(c.ref) + '</h2><p class="muted" style="margin:0">One PO a supplier × site of the award (item-wise). Approved with this CS – no other approval. Made, it goes at once to the site\'s Store: the site\'s GRNs and bills are made against it. ' +
+      '<span class="mr">प्रत्येक पुरवठादार × site साठी एक PO – CS मंजूर म्हणजे PO मंजूर.</span></p><div class="tw" style="margin-top:10px"><table><thead><tr><th>Supplier</th><th>Site</th><th>Items</th><th class="n">Lines</th><th class="n">Total (with GST)</th><th>PO</th><th></th></tr></thead><tbody>' +
+      P0.groups.map(g => '<tr><td class="nm">' + esc(g.vendor_name) + '</td><td>' + esc(g.site) + '</td><td class="wrap">' + esc(g.items) + '</td><td class="n">' + g.lines + '</td><td class="n">' + money(g.po ? g.po.total : g.total) + (!g.po && g.missing ? '<small>GST % to be entered on ' + g.missing + ' line' + (g.missing === 1 ? '' : 's') + '</small>' : '') + '</td>' +
+        '<td>' + (g.po ? '<b>' + esc(g.po.ref) + '</b> ' + tag(g.po.state) : '<span class="muted">not made yet</span>') + '</td><td>' + (g.po ? '<button type="button" class="btn small" data-act="poOpen" data-no="' + g.po.no + '">Open</button>'
+          : g.may ? '<button type="button" class="btn small primary" data-act="poNew" data-v="' + g.vendor + '" data-site="' + esc(g.site) + '">Make PO</button>' : '<span class="muted">another site – who has Purchase there</span>') + '</td></tr>').join('') +
+      '</tbody></table></div><div id="cs_poform"></div></section>';
+  }
+  // the form of a new PO: the lines and money from the CS (a GST % not quoted is typed here), the site's address and contact, the terms
+  const poMoneyLine = (l, g) => { const pct = l.gst_pct !== null && l.gst_pct !== undefined ? Number(l.gst_pct) : numOf(g), gross = r2(l.qty * l.rate), tx = r2(gross * (100 - Number(l.disc_pct || 0)) / 100), gst = pct === null || !isFinite(pct) ? 0 : r2(tx * pct / 100); return { tx: tx, gst: gst, all: r2(tx + gst), ok: pct !== null && isFinite(pct) }; };
+  function poFormDraw() {
+    const d = ST.poForm, m = d.money, st = d.start, box = $('cs_poform'); if (!box) return;
+    box.innerHTML = '<div class="panel" style="margin:14px 0 0;border-color:#D99A00"><h2>New PO – ' + esc(d.vendor.name) + ' · ' + esc(d.site_name) + ' <span class="sidebadge">' + esc(d.site) + '</span></h2>' +
+      '<div class="muted">From ' + esc(d.cs.ref) + ' (' + esc(d.rfq.ref) + '), approved by ' + esc(d.cs.approved_name) + ' ' + dmyAt(d.cs.approved_at) + ' – the PO is approved with it. Supplier: ' + esc([d.vendor.gstin, d.vendor.phone, d.vendor.address].filter(Boolean).join(' · ')) + '</div>' +
+      (d.papers_error ? '<p class="muted">The site\'s shipping address and terms could not be read from its Store (' + esc(d.papers_error) + ') – type them.</p>' : '') +
+      '<div class="grid" style="margin-top:10px"><div class="field"><label for="po_date">PO date</label><input type="date" id="po_date" value="' + esc(st.date) + '" max="' + today() + '"></div><div class="field"><label for="po_need">Delivery by</label><input type="date" id="po_need" value="' + esc(st.need_by || '') + '"></div>' +
+      '<div class="field wide"><label for="po_pay">Payment terms</label><input id="po_pay" maxlength="200" value="' + esc(st.pay_terms) + '"></div><div class="field wide"><label for="po_ship">Shipping address (the site)</label><textarea id="po_ship" maxlength="300">' + esc(st.ship_to) + '</textarea></div>' +
+      '<div class="field wide"><label for="po_contact">Site contact</label><input id="po_contact" maxlength="120" value="' + esc(st.site_contact) + '"></div><div class="field wide"><label for="po_terms">Terms and conditions (one a line)</label><textarea id="po_terms" maxlength="3000" rows="4">' + esc(st.terms) + '</textarea></div>' +
+      '<div class="field wide"><label for="po_rem">Remark (printed on it)</label><input id="po_rem" maxlength="300"></div></div>' +
+      '<div class="tw"><table><thead><tr><th>#</th><th>Item</th><th>From</th><th class="n">Qty</th><th>Unit</th><th class="n">Rate</th><th class="n">Disc. %</th><th class="n">GST %</th><th class="n">Amount</th><th class="n">GST</th><th class="n">Total</th><th class="n">Landed (CS)</th></tr></thead><tbody id="po_lines">' +
+      m.lines.map(l => '<tr data-cl="' + l.cs_line + '"><td>' + l.line + '</td><td class="nm">' + esc(l.name) + '<small>' + esc([l.code, l.brand, l.spec].filter(Boolean).join(' · ')) + '</small></td><td>' + esc(l.ref) + '<small>' + esc(l.site) + ' · requirement line ' + l.req_line + '</small></td>' +
+        '<td class="n">' + n3(l.qty) + '</td><td>' + esc(l.unit) + '</td><td class="n">' + a2(l.rate) + '</td><td class="n">' + a2(l.disc_pct) + '</td><td class="n">' + (l.gst_quoted ? a2(l.gst_pct) : '<input class="num gst" inputmode="decimal" data-gst="' + l.cs_line + '" aria-label="GST % of ' + esc(l.name) + '" placeholder="not quoted">') + '</td>' +
+        '<td class="n" data-tx></td><td class="n" data-gx></td><td class="n" data-ax></td><td class="n">' + a2(l.landed) + '</td></tr>').join('') + '</tbody></table></div>' +
+      '<p id="po_sum" style="font-weight:600"></p><div class="acts"><button type="button" class="btn primary" data-act="poSave">Save PO and send it to the site</button><button type="button" class="btn" data-act="poFormX">Cancel</button></div></div>';
+    poSum();
+  }
+  function poSum() {
+    const d = ST.poForm; if (!d || !$('po_sum')) return; let tx = 0, gst = 0, miss = 0;
+    d.money.lines.forEach(l => { const tr = document.querySelector('#po_lines tr[data-cl="' + l.cs_line + '"]'), i = tr && tr.querySelector('input[data-gst]'), x = poMoneyLine(l, i ? i.value : null);
+      if (tr) { tr.querySelector('[data-tx]').textContent = a2(x.tx); tr.querySelector('[data-gx]').textContent = x.ok ? a2(x.gst) : '–'; tr.querySelector('[data-ax]').textContent = a2(x.all); }
+      tx += x.tx; gst += x.gst; if (!x.ok) miss++; });
+    const fr = d.money.freight, ld = d.money.loading;
+    $('po_sum').innerHTML = 'Amount ' + money(r2(tx)) + ' + GST ' + money(r2(gst)) + ' + freight ' + money(fr) + ' + loading ' + money(ld) + ' = <b>' + money(r2(r2(tx) + r2(gst) + fr + ld)) + '</b>' + (miss ? ' <span style="color:var(--bad)">· enter the GST % of ' + miss + ' line' + (miss === 1 ? '' : 's') + '</span>' : '');
+  }
+  document.addEventListener('input', e => { if (e.target.closest('#po_lines input[data-gst]')) poSum(); });
+
+  async function poPage() {
+    frame('po', '<section class="panel" id="po_view" hidden></section><section class="panel"><h2>Purchase Orders</h2><p class="muted" style="margin:0">Each PO of an approved comparative statement – one a supplier × site. Its copy is in the site\'s Store: the site\'s GRNs and bills are made against it; ' +
+      'what came and the balance are read from there. A new PO: Comparative Statement → an approved CS → <b>Make PO</b>. <span class="mr">PO ची प्रत site च्या Store मध्ये – GRN तिथे होतो, शिल्लक इथे दिसते.</span></p>' +
+      '<div class="bar"><div class="field"><label for="po_st">Show</label><select id="po_st"><option value="">All</option><option>Not yet at the site</option><option>At the site</option><option>Partly received</option><option>Received</option><option>Cancelled</option></select></div></div><div id="po_list"></div></section>');
+    await poList();
+    if (ST.poNo) { await poOpen(ST.poNo); $('po_view').scrollIntoView({ block: 'start' }); } else $('po_view').hidden = true;
+  }
+  async function poList() {
+    const r = await P('poList', { state: $('po_st').value || undefined });
+    $('po_list').innerHTML = (r.store && !r.store.ok ? '<p class="muted">' + esc(r.store.error) + '</p>' : '') + (r.pos.length ? '<div class="tw"><table><thead><tr><th>PO No.</th><th>Date</th><th>Supplier</th><th>Items</th><th class="n">Total</th><th>CS</th><th>State</th><th></th></tr></thead><tbody>' +
+      r.pos.map(p => '<tr><td><b>' + esc(p.ref) + '</b><small>' + esc(p.site) + (p.store_no ? ' · its PO ' + p.store_no : '') + '</small></td><td>' + dmy(p.date) + (p.need_by ? '<small>by ' + dmy(p.need_by) + '</small>' : '') + '</td><td class="nm">' + esc(p.vendor) + '</td><td class="wrap">' + esc(p.items) + '<small>' + p.nlines + ' line' + (p.nlines === 1 ? '' : 's') + '</small></td>' +
+        '<td class="n">' + money(p.total) + '</td><td>' + esc(p.cs_ref) + '</td><td>' + tag(p.state) + (p.grns ? '<small>' + p.grns + ' GRN</small>' : '') + '</td><td><button type="button" class="link" data-act="poOpen" data-no="' + p.no + '">Open</button></td></tr>').join('') + '</tbody></table></div>'
+      : '<p class="empty">No purchase order' + ($('po_st').value ? ' in this state' : ' yet – make one from an approved comparative statement') + '.</p>');
+  }
+  const checkTxt = c => !c ? '' : c.ok ? '<span class="tag">As per PO</span>' : c.diffs.map(d => '<span class="tag warn">' + esc(d.kind === 'rate' ? d.name + ': rate ₹' + d.bill + ' – PO ₹' + d.po : d.kind === 'gst' ? d.name + ': GST ' + d.bill + '% – PO ' + d.po + '%' : d.kind === 'qty' ? d.name + ': ' + d.bill + ' ' + (d.unit || '') + ' – PO still had ' + d.po : d.name + ': not on the PO') + '</span>').join(' ');
+  async function poOpen(no) {
+    const r = await P('poGet', { no: no }); ST.poNo = no; ST.po = r;
+    const q = r.po, si = r.site, m = r.may, box = $('po_view'); box.hidden = false;
+    const came = {}; (si ? si.lines : []).forEach(l => { came[l.line] = l; });
+    const where = q.status === 'Cancelled' ? '<div class="errbox">Cancelled by ' + esc(q.cancelled_name) + ' ' + dmyAt(q.cancelled_at) + ': ' + esc(q.status_note) + (si ? ' – its copy at the site (PO ' + si.no + ') is ' + esc(si.status) + '.' : '') + '</div>'
+      : q.state === 'Not yet at the site' ? '<div class="errbox"><b>Not yet at the site</b> – ' + esc(q.sent.error || 'it was not sent yet') + (q.sent.last ? ' (tried ' + q.sent.tries + ' time' + (q.sent.tries === 1 ? '' : 's') + ', last ' + dmyAt(q.sent.last) + ')' : '') + '. Nothing is lost – <b>Send again</b> (the same copy, never twice).</div>'
+      : si ? '<div class="muted">At the site in its Store as PO ' + si.no + ' (' + esc(si.ref) + ') since ' + dmyAt(q.sent.at) + ' – the GRNs and bills of the site are made against it.</div>' : '';
+    box.innerHTML = '<div class="bar" style="margin-top:0;justify-content:space-between;align-items:flex-start"><div><h2>' + esc(q.ref) + ' ' + tag(q.state) + '</h2><div class="muted">Date ' + dmy(q.date) + (q.need_by ? ' · delivery by ' + dmy(q.need_by) : '') +
+      ' · site ' + esc(r.site_name) + ' (' + esc(q.site) + ') · made by ' + esc(q.created_name) + ' · from ' + esc(q.cs_ref) + ' (' + esc(q.rfq_ref) + ')' + (q.approved.name ? ', approved by ' + esc(q.approved.name) + ' ' + dmyAt(q.approved.at) : '') + '</div>' + where +
+      (r.site_error ? '<p class="muted">' + esc(r.site_error) + '</p>' : '') + '</div>' +
+      '<div class="acts"><button type="button" class="btn small" data-act="poPrint">Print</button>' + (q.status === 'Open' ? '<a class="btn small" target="_blank" rel="noopener" data-wa="1" href="' + esc(waPo(r)) + '">Share on WhatsApp</a>' : '') +
+      (m.send ? '<button type="button" class="btn small primary" data-act="poSend">Send again</button>' : '') + (m.cancel ? '<button type="button" class="btn small bad" data-act="poCancel">Cancel PO</button>' : '') + '<button type="button" class="btn small" data-act="poHide">Close</button></div></div>' +
+      '<div class="kv"><div><small>Supplier</small><b>' + esc(q.vendor.name) + '</b><br>' + esc([q.vendor.gstin, q.vendor.phone].filter(Boolean).join(' · ')) + '<div class="pre">' + esc(q.vendor.address || '') + '</div></div><div><small>Payment terms</small>' + esc(q.pay_terms || '–') + '</div>' +
+      '<div><small>Shipping address</small><div class="pre">' + esc(q.ship_to) + '</div></div><div><small>Site contact</small>' + esc(q.site_contact || '–') + '</div>' + (q.terms ? '<div><small>Terms and conditions</small><div class="pre">' + esc(q.terms) + '</div></div>' : '') + (q.remark ? '<div><small>Remark</small>' + esc(q.remark) + '</div>' : '') + '</div>' +
+      '<h3>Lines – ordered · came at the site · balance</h3><div class="tw"><table><thead><tr><th>#</th><th>Item</th><th>From</th><th class="n">Qty</th><th>Unit</th><th class="n">Rate</th><th class="n">Disc. %</th><th class="n">GST %</th><th class="n">Amount</th><th class="n">GST</th><th class="n">Total</th><th class="n">Came</th><th class="n">Balance</th></tr></thead><tbody>' +
+      q.lines.map(l => { const c = came[l.line]; return '<tr><td>' + l.line + '</td><td class="nm">' + esc(l.name) + '<small>' + esc([l.code, l.brand, l.spec].filter(Boolean).join(' · ')) + '</small></td><td>' + esc(l.ref) + '<small>' + esc(l.site) + ' · requirement line ' + l.req_line + '</small></td><td class="n">' + n3(l.qty) + '</td><td>' + esc(l.unit) + '</td>' +
+        '<td class="n">' + a2(l.rate) + '</td><td class="n">' + a2(l.disc_pct) + '</td><td class="n">' + a2(l.gst_pct) + '</td><td class="n">' + a2(l.taxable) + '</td><td class="n">' + a2(l.gst) + '</td><td class="n">' + a2(l.total) + '</td>' +
+        '<td class="n">' + (c ? n3(c.came) : '') + '</td><td class="n">' + (c ? '<b class="' + (c.left > 0 ? 'bal' : 'bal0') + '">' + n3(c.left) + '</b>' : '') + '</td></tr>'; }).join('') +
+      '<tr class="tot"><td colspan="8">Freight ' + money(q.freight) + ' · loading ' + money(q.loading) + '</td><td class="n">' + a2(q.taxable) + '</td><td class="n">' + a2(q.gst) + '</td><td class="n">' + money(q.total) + '</td><td colspan="2"></td></tr></tbody></table></div>' +
+      '<h3>GRNs at the site (the bills) – ' + (si ? si.grns.length : 0) + '</h3>' + (si && si.grns.length ? '<div class="tw"><table><thead><tr><th>GRN</th><th>Date</th><th>Invoice</th><th>Items</th><th class="n">Gross</th><th>Bill checked with the PO</th></tr></thead><tbody>' +
+        si.grns.map(g => '<tr><td><b>' + esc(g.ref) + '</b></td><td>' + dmy(g.date) + '</td><td>' + esc(g.invoice_no || '') + (g.invoice_date ? '<small>' + dmy(g.invoice_date) + '</small>' : '') + (g.challan_no ? '<small>Challan ' + esc(g.challan_no) + '</small>' : '') + (g.vehicle_no ? '<small>' + esc(g.vehicle_no) + '</small>' : '') + '</td>' +
+          '<td class="wrap">' + g.lines.map(l => esc(l.name + ' ' + n3(l.qty) + ' ' + l.unit) + ' <small>@ ' + a2(l.rate) + '</small>').join('') + '</td><td class="n">' + money(g.gross) + '</td><td class="wrap">' + checkTxt(g.check) + '</td></tr>').join('') + '</tbody></table></div>'
+        : '<p class="muted">' + (si ? 'No GRN on it yet.' : q.status === 'Open' && q.state !== 'Not yet at the site' ? 'The site\'s Store could not be read now.' : '–') + '</p>');
+  }
+  // the PO as one WhatsApp message to the supplier (the person taps it – WhatsApp opens with the text; nothing is sent by the server)
+  function waPoText(r) {
+    const q = r.po, co = (r.heading && r.heading.company) || 'Rachana Construction Limited';
+    return ['*' + co + ' – Purchase Order ' + q.ref + '*', 'Date: ' + dmy(q.date) + (q.need_by ? ' · Delivery by: ' + dmy(q.need_by) : ''), 'To: ' + q.vendor.name, 'Site: ' + r.site_name, '', 'Please supply:']
+      .concat(q.lines.map((l, i) => (i + 1) + '. ' + l.name + (l.brand ? ' – ' + l.brand : '') + (l.spec ? ' (' + l.spec + ')' : '') + ': ' + n3(l.qty) + ' ' + l.unit + ' @ ₹' + a2(l.rate) + (Number(l.disc_pct) ? ' less ' + l.disc_pct + '%' : '') + ' · GST ' + a2(l.gst_pct) + '%'))
+      .concat(['', 'Amount ' + money(q.taxable) + ' + GST ' + money(q.gst) + (q.freight ? ' + freight ' + money(q.freight) : '') + (q.loading ? ' + loading ' + money(q.loading) : '') + ' = *' + money(q.total) + '*'])
+      .concat(q.pay_terms ? ['Payment terms: ' + q.pay_terms] : []).concat(['Deliver to: ' + String(q.ship_to || '').replace(/\n/g, ', ')]).concat(q.site_contact ? ['Site contact: ' + q.site_contact] : [])
+      .concat(q.terms ? ['', 'Terms:', q.terms] : []).concat(['', 'Please quote ' + q.ref + ' on your bill.']).join('\n');
+  }
+  const waPo = r => 'https://wa.me/' + (r.po.wa || '') + '?text=' + encodeURIComponent(waPoText(r));
+  /* THE PO'S PAPER – the company's PO format, as the Store's PO paper (the same look): the logo and the company's heading (the site's
+   * company – from its Store), Supplier Details beside PO Details and the Shipping Address, the lines, the totals in figures and words,
+   * Remark, Terms And Conditions, Prepared By / Approved By (the CS's approval – G-6) */
+  const RLOGO = (() => { try { return new URL('img/rcl-logo.png', location.href).href; } catch (e) { return 'img/rcl-logo.png'; } })();
+  const PCSS = '<style>.fm{font:11px Arial,sans-serif}.fm table{border-collapse:collapse;width:100%}.fm td,.fm th{border:1px solid #000;padding:2px 5px;vertical-align:top}.fm .nb td{border:0;padding:1px 3px}' +
+    '.fm .plogo{display:inline-block;width:250px;max-width:92%;height:auto;vertical-align:middle}.fm .cn{font-size:18px;font-weight:700;text-align:center}.fm .ttl{text-align:center;font-weight:700;font-size:14px}.fm .sh{text-align:center;font-weight:700;border-bottom:1px solid #000;margin:0 -5px 3px;padding-bottom:2px}' +
+    '.fm .r{text-align:right}.fm .c{text-align:center}.fm .sig{display:flex;justify-content:space-between;margin-top:120px;padding:0 40px}.fm .sig div{text-align:center;font-weight:700}.fm .cg{text-align:center;font-weight:700;margin-top:6px}.fm ol{margin:4px 0 0 18px;padding:0}.fm li{margin:6px 0}</style>';
+  const nl = t => esc(t || '').replace(/\n/g, '<br>');
+  const kv = rows => '<table class="nb">' + rows.map(r => '<tr><td style="width:' + (r[2] || 95) + 'px">' + esc(r[0]) + '</td><td style="width:10px">-</td><td>' + (r[1] || '') + '</td></tr>').join('') + '</table>';
+  function poPrint() {
+    const r = ST.po, p = r.po, h = r.heading || {}, sup = p.vendor || {}, hsn = {}; ((r.site || {}).lines || []).forEach(l => { hsn[l.line] = l.hsn || ''; });
+    const logo = /rachana/i.test(h.company || 'Rachana') ? '<img class="plogo" src="' + esc(RLOGO) + '" alt="' + esc(h.company || 'Rachana Construction Limited') + '">' : h.logo ? '<img src="' + esc(h.logo) + '" alt="" style="max-height:70px;max-width:100%">' : '<b style="font-size:22px">' + esc(h.company || '') + '</b>';
+    const n2f = v => Number(v || 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    const head = '<table><tr><td style="width:50%;text-align:center;vertical-align:middle;border-right:0">' + logo + '</td><td style="border-left:1px solid #000"><div class="cn">' + esc(h.company || 'Rachana Construction Limited') + '</div>' +
+      '<div class="c">' + nl(h.address) + '</div><table class="nb"><tr><td><b>Email ID.</b> : ' + esc(h.email || '') + '</td><td><b>Contact</b> : ' + esc(h.phone || '') + '</td></tr><tr><td><b>CIN No</b> : ' + esc(h.cin || '') + '</td><td><b>Web</b> : ' + esc(h.web || '') + '</td></tr>' +
+      '<tr><td><b>GST No</b> : ' + esc(h.gstin || '') + '</td><td><b>PAN No</b> : ' + esc(h.pan || '') + '</td></tr></table></td></tr><tr><td colspan="2" class="ttl">Purchase Order</td></tr>' +
+      '<tr><td style="width:50%"><div class="sh">Supplier Details</div>' + kv([['Name', '<b>' + esc(sup.name) + '</b>'], ['Address', nl(sup.address)], ['Mobile No.', esc(sup.phone)], ['E-mail', esc(sup.email)], ['Contact Person', ''], ['GSTIN No', esc(sup.gstin)]]) + '</td>' +
+      '<td><div class="sh">PO Details</div>' + kv([['PO No.', '<b>' + esc(p.ref) + '</b>'], ['PO Date', dmy(p.date)], ['Payment Terms', esc(p.pay_terms)], ['Project Name', esc(h.site || r.site_name || p.site)], ['Site Contact', esc(p.site_contact)]].concat(p.need_by ? [['Delivery by', dmy(p.need_by)]] : [], r.site ? [['Site PO No.', esc(r.site.ref)]] : [])) +
+      '<div class="sh" style="border-top:1px solid #000;padding-top:2px;margin-top:3px">Shipping Address</div>' + nl(p.ship_to) + '</td></tr></table>';
+    const lines = p.lines.map((l, i) => '<tr><td class="c">' + (i + 1) + '</td><td>' + esc(l.name + (l.spec ? ' - ' + l.spec : '')) + '</td><td class="c">' + esc(l.brand || '-') + '</td><td class="c">' + esc(hsn[l.line] || '') + '</td><td class="r">' + n2f(l.gst_pct) +
+      '</td><td class="r">' + Number(l.qty).toLocaleString('en-IN', { minimumFractionDigits: 1, maximumFractionDigits: 3 }) + '</td><td class="c">' + esc(l.unit) + '</td><td class="r">' + n2f(l.rate) + '</td><td class="r">' + n2f(l.disc_pct) + '</td><td class="r">' + n2f(l.taxable) + '</td></tr>').join('');
+    const disc = p.lines.reduce((a, l) => a + Number(l.disc || 0), 0), row = (t, v, b) => '<tr><td colspan="9"><b>' + t + '</b></td><td class="r">' + (b ? '<b>' + n2f(v) + '</b>' : n2f(v)) + '</td></tr>';
+    const items = '<table style="margin-top:6px"><thead><tr><th>S.N.</th><th>Item Description- Specification</th><th>Brand</th><th>HSN</th><th>GST %</th><th>Qty</th><th>Unit</th><th>Rate</th><th>Disc. %</th><th>Amount</th></tr></thead><tbody>' + lines +
+      row('Total Disc. Amount', disc) + row('Gross Amount', p.taxable) + (p.gst > 0 ? row('Total GST Amount', p.gst) : '') + '<tr><td colspan="10" style="height:22px"></td></tr>' +
+      row('Total Freight Charges', p.freight) + row('Total Load / Unload Amount', p.loading) + row('TOTAL AMOUNT (Rs.)', p.total, true) + '<tr><td colspan="2"><b>Amount in word :</b></td><td colspan="8"><b>' + esc(p.words || '') + '</b></td></tr></tbody></table>';
+    const terms = String(p.terms || '').split('\n').map(t => t.trim()).filter(Boolean);
+    const tc = terms.length ? '<p style="margin-top:14px"><b>Terms And Conditions:</b></p>' + (terms.every(t => /^\d+[.)]/.test(t)) ? terms.map(t => '<p style="margin:6px 0">' + esc(t) + '</p>').join('') : '<ol>' + terms.map(t => '<li>' + esc(t) + '</li>').join('') + '</ol>') : '';
+    printHtml(p.ref, PCSS + '<div class="fm">' + (p.status === 'Cancelled' ? '<p class="ttl" style="color:#B3261E">CANCELLED – ' + esc(p.status_note) + '</p>' : '') + head + items + '<p style="margin-top:8px"><b>Remark:</b> ' + esc(p.remark || '') + '</p>' + tc +
+      '<div class="sig"><div>' + esc(p.created_name || '') + '<br><br>Prepared By</div><div>' + esc(p.approved.name || '') + '<br><br>Approved By</div></div><div class="cg">This Purchase Order is computer generated it does not require signature.</div></div>', true);
+  }
+  document.addEventListener('change', e => { if (e.target.id === 'po_st') poList().catch(failed); });
 
   /* ====================== WAITING FOR MY APPROVAL ====================== */
   async function approve() {
@@ -409,6 +541,30 @@
       await P('vendorStatus', { id: v.id, ver: v.ver, status: to, why: why }); toast(v.name + ' – ' + to.toLowerCase() + '.'); ST.vendors = null; await vendors();
     },
     async seSave() { const r = await P('settingsSave', { limit: $('se_lim').value }); toast('The CS limit is ' + money(r.limit) + '.'); seNow(r); },
+    // (10-11-2026) PURCHASE ORDERS
+    async poNew(b) { ST.poForm = await P('poNew', { cs: ST.csv.cs.no, vendor: Number(b.dataset.v), site: b.dataset.site }); poFormDraw(); $('cs_poform').scrollIntoView({ block: 'nearest' }); },
+    poFormX() { ST.poForm = null; const f = $('cs_poform'); if (f) f.innerHTML = ''; },
+    async poSave(b) {
+      const d = ST.poForm, gst = {}; document.querySelectorAll('#po_lines input[data-gst]').forEach(i => { gst[i.dataset.gst] = i.value; });
+      const x = { cs: d.cs.no, vendor: d.vendor.id, site: d.site, date: $('po_date').value, need_by: $('po_need').value, pay_terms: $('po_pay').value, ship_to: $('po_ship').value, site_contact: $('po_contact').value, terms: $('po_terms').value, remark: $('po_rem').value, gst: gst };
+      if (!(await ask('Make the PO for ' + d.vendor.name + ' (' + d.site + ')?', '<p>Total ' + esc(($('po_sum') || {}).textContent || '') + '.</p><p>It is approved with ' + esc(d.cs.ref) + ' and goes at once to the site\'s Store.</p>', [{ label: 'Not yet', value: false }, { label: 'Make the PO', value: true, primary: true }]))) return;
+      b.disabled = true;
+      try { const r = await P('poMake', x); ST.poForm = null; ST.poNo = r.po.no;
+        toast(r.sent ? r.po.ref + ' made – it is at the site (its PO ' + r.po.sent.store_no + ').' : r.po.ref + ' made – NOT yet at the site: ' + r.send_error, !r.sent); K().go('po'); }
+      finally { b.disabled = false; }
+    },
+    async poOpen(b) { ST.poNo = Number(b.dataset.no); if (K().S.page !== 'po') { K().go('po'); return; } await poOpen(ST.poNo); $('po_view').scrollIntoView({ block: 'start' }); },
+    poHide() { ST.poNo = 0; $('po_view').hidden = true; },
+    poPrint() { poPrint(); },
+    async poSend(b) {
+      b.disabled = true;
+      try { const r = await P('poSend', { no: ST.po.po.no }); toast(r.sent ? r.po.ref + ' – at the site now (its PO ' + r.po.sent.store_no + ').' : r.po.ref + ' – still not at the site: ' + r.send_error, !r.sent); await poList(); await poOpen(r.po.no); }
+      finally { b.disabled = false; }
+    },
+    async poCancel() {
+      const q = ST.po.po, why = await askWhy('Cancel ' + q.ref + '?', 'Why is it cancelled? (only while nothing has come at the site – its copy there is cancelled too; its requirement lines go back to the Inbox)', 'Cancel PO'); if (why === null) return;
+      const r = await P('poCancel', { no: q.no, ver: q.ver, why: why }); toast(q.ref + ' – cancelled.'); await poList(); await poOpen(r.po.no);
+    },
   };
   // a reason asked (at least 3 letters) – null: not done
   async function askWhy(title, label, okLabel) {
@@ -425,5 +581,5 @@
     Promise.resolve().then(() => ACT[b.dataset.act](b)).catch(failed);
   });
 
-  window.RPW = { open: page => ({ inbox: inbox, rfq: rfqPage, quotes: quotes, cs: csPage, approve: approve, vendors: vendors, settings: settings }[page] || (() => Promise.resolve()))() };
+  window.RPW = { open: page => ({ inbox: inbox, rfq: rfqPage, quotes: quotes, cs: csPage, po: poPage, approve: approve, vendors: vendors, settings: settings }[page] || (() => Promise.resolve()))() };
 })();

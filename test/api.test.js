@@ -59,7 +59,8 @@ const SAPW = 'Super#Admin2040', PW = 'Nashik#Road848!', VPW = 'Audit#PassView9!x
   r = await US.s.req('/api/me');
   ok('/api/me: who, which site, which role, his sites', r.j.signedIn && r.j.site === 'S1' && r.j.user.role === 'user' && r.j.portal === P && r.j.sites.length === 1, r.j);
   r = await US.s.req('/menu.json'); const r2 = await client(U).req('/menu.json');
-  ok('/menu.json: the Dashboard (signed in and before)', JSON.stringify(r.j.pages) === '[{"key":"dashboard","name":"Dashboard"}]' && r2.j.module === 'purchase' && r2.j.pages.length === 1, [r.j, r2.j]);
+  // (09-11-2026, Purchase Phase 1) a Purchase User: the Dashboard and the purchase pages (not Waiting for my approval, not Settings); before a sign-in: every page
+  ok('/menu.json: a Purchase User\'s pages (signed in); every page (before)', r.j.pages.map(p => p.key).join() === 'dashboard,inbox,rfq,quotes,cs,vendors' && r2.j.module === 'purchase' && r2.j.pages.length === 8, [r.j, r2.j]);
   // the fresh ticket every 10 minutes (renew): the sign-in is replaced, nothing written again
   const before = sql('rcl_pur', "select count(*) from pur_activity"), t2 = (await US.p.req('/api/go?module=purchase&site=S1&json=1&renew=1')).j.ticket;
   r = await US.s.req('/api/sso', { ticket: t2, renew: 1 });

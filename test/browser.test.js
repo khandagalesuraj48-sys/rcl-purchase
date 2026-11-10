@@ -43,7 +43,7 @@ const PW = 'Nashik#Road848!', VPW = 'Audit#PassView9!x';
       tile: (document.querySelector('#db_body .tile b') || {}).textContent, rows: [...document.querySelectorAll('#db_body tbody tr')].map(r => r.textContent), menu: [...document.querySelectorAll('#pur_pages .navbtn')].map(x => x.textContent),
       mods: [...document.querySelectorAll('#mods .grphead')].map(x => x.textContent.trim()) }));
     ok('the Dashboard: Purchase Admin · VTR; his two sites, the one open now marked', d.title === 'Dashboard' && /^Purchase Admin · /.test(d.who) && d.tile === '2' && d.rows.length === 2 && d.rows.some(t => /Open now/.test(t)), d);
-    ok('   the menu: Purchase – Dashboard; his other modules of the site below it', JSON.stringify(d.menu) === '["Dashboard"]' && d.mods.length >= 1, d);
+    ok('   the menu: Purchase – Dashboard and the purchase pages of a Purchase Admin (09-11-2026); his other modules of the site below it', JSON.stringify(d.menu) === '["Dashboard","Inbox","Enquiries","Quotations","Comparative Statement","Waiting for my approval","Suppliers"]' && d.mods.length >= 1, d);
     await A.p.screenshot({ path: path.join(SHOTS, 'pur_dashboard.png') });
     // Change site: his sites with Purchase
     await A.p.click('#site_chg'); await wait(400);

@@ -5,8 +5,17 @@
 'use strict';
 const { handler, send } = require('../lib/http');
 const ses = require('../lib/session');
+// (09-11-2026) Purchase Phase 1: the Inbox, Enquiries, Quotations, the Comparative Statement, Waiting for my approval (a Purchase
+// Admin / the Super Admin), Suppliers, Settings (the Super Admin – the CS limit)
 const PAGES = [
   { key: 'dashboard', name: 'Dashboard', who: 'all' },
+  { key: 'inbox', name: 'Inbox', who: 'all' },
+  { key: 'rfq', name: 'Enquiries', who: 'all' },
+  { key: 'quotes', name: 'Quotations', who: 'all' },
+  { key: 'cs', name: 'Comparative Statement', who: 'all' },
+  { key: 'approve', name: 'Waiting for my approval', who: 'admin' },
+  { key: 'vendors', name: 'Suppliers', who: 'all' },
+  { key: 'settings', name: 'Settings', who: 'super' },
 ];
 const mayOpen = (who, role) => who === 'all' || (who === 'admin' && (role === 'admin' || role === 'super')) || (who === 'super' && role === 'super');
 module.exports = handler(async (req, res) => {

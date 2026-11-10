@@ -49,7 +49,7 @@ const REQ = (no, st, lines, need) => "(" + no + ", current_date - 2, " + (need ?
     "delete from access where module = 'purchase'; insert into access (email, site, module, role, granted_by) values ('sujit@rcl.test', 'S1', 'purchase', 'admin', 'test'), ('sujit@rcl.test', 'T2', 'purchase', 'admin', 'test'), " +
     "('view@rcl.test', 'S1', 'purchase', 'user', 'test'), ('store@rcl.test', 'S1', 'purchase', 'user', 'test'), ('store@rcl.test', 'T2', 'purchase', 'user', 'test'); " +
     "delete from access where module = 'store' and email = 'sujit@rcl.test' and site = 'T2'; insert into access (email, site, module, role, granted_by, pages) values ('sujit@rcl.test', 'T2', 'store', 'user', 'test', '{\"purchase\":\"Edit\"}');");
-  sql('rcl_pur', "truncate public.pur_cs, public.pur_quote, public.pur_rfq, public.pur_vendors restart identity; delete from public.pur_numbers where kind in ('RFQ', 'CS'); delete from public.pur_settings where id = 'cs_limit';");
+  sql('rcl_pur', "truncate public.pur_cs, public.pur_quote, public.pur_rfq, public.pur_vendors restart identity cascade; delete from public.pur_numbers where kind in ('RFQ', 'CS'); delete from public.pur_settings where id = 'cs_limit';");
   sql('rcl', 'delete from store_req where no between 9001 and 9010; insert into store_req (no, date, need_by, for_kind, for_text, remark, lines, status, level, approvals, created_by, created_name) values ' + [
     REQ(9001, 'Approved', [{ line: 1, code: 'ITM-0001', name: 'Cement OPC 53', unit: 'Bag', qty: 100, brand: 'UltraTech', spec: 'OPC 53 grade' }, { line: 2, code: 'ITM-0002', name: 'TMT Bar 12 mm', unit: 'Kg', qty: 500 }], 10),
     REQ(9002, 'Pending', [{ line: 1, code: 'ITM-0003', name: 'Binding Wire', unit: 'Kg', qty: 25 }]),
@@ -61,8 +61,8 @@ const REQ = (no, st, lines, need) => "(" + no + ", current_date - 2, " + (need ?
     const SA = await signIn(U, 'purchase', 'sa@rcl.test', 'Super#Admin2040', 'S1'), AD = await signIn(U, 'purchase', 'sujit@rcl.test', PW, 'S1');
     const US = await signIn(U, 'purchase', 'view@rcl.test', VPW, 'S1'), U2 = await signIn(U, 'purchase', 'store@rcl.test', VPW, 'S1'), AD2 = await signIn(U, 'purchase', 'sujit@rcl.test', PW, 'T2');
     let r = await US.req('/menu.json'), r1 = await AD.req('/menu.json'), r3 = await SA.req('/menu.json');
-    ok('the menu: a Purchase User – Inbox, Enquiries, Quotations, Comparative Statement, Suppliers; the Admin + Waiting for my approval; the Super Admin + Settings',
-      r.j.pages.map(p => p.key).join() === 'dashboard,inbox,rfq,quotes,cs,vendors' && r1.j.pages.map(p => p.key).join() === 'dashboard,inbox,rfq,quotes,cs,approve,vendors' && r3.j.pages.length === 8, [r.j.pages, r1.j.pages]);
+    ok('the menu: a Purchase User – Inbox, Enquiries, Quotations, Comparative Statement, Purchase Orders (Phase 2), Suppliers; the Admin + Waiting for my approval; the Super Admin + Settings',
+      r.j.pages.map(p => p.key).join() === 'dashboard,inbox,rfq,quotes,cs,po,vendors' && r1.j.pages.map(p => p.key).join() === 'dashboard,inbox,rfq,quotes,cs,po,approve,vendors' && r3.j.pages.length === 9, [r.j.pages, r1.j.pages]);
 
     // ---- the CS limit (the Super Admin) ----
     r = await act(US, 'settings');

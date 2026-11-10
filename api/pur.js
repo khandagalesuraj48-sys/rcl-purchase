@@ -1,10 +1,13 @@
 /* POST /api/pur { action, … } – PURCHASE PHASE 1 (09-11-2026): suppliers, the Inbox (the sites' approved requirement lines still to
  * order – asked of the Store's own server), enquiries (RFQ), quotations, the comparative statement (CS) and its approval, the CS limit.
+ * PURCHASE PHASE 2 (10-11-2026): the purchase order – one a supplier × site of an approved CS (approved with it – G-6); its master here,
+ * its copy at the site's Store (D-2 – lib/storelink.js po); its GRNs and balance read from there; Send again; Cancel (no GRN yet).
  * Written fresh for RCL. The sign-in (cookie) says who, which site, which role (super / admin / user – the Portal's) and every site
  * where he has Purchase (the Portal's ticket). Every check is here, on the server (lib/rules.js holds the rules themselves); every save
  * writes pur_activity.
  *   a Purchase User   – suppliers (add, change), enquiries, quotations, the CS (make, award, send)
- *   a Purchase Admin  – the same; a supplier Blocked / Approved again; approves a CS of his site up to the limit
+ *   a Purchase User   – (Phase 2) a PO of his site from an approved CS; Send again
+ *   a Purchase Admin  – the same; a supplier Blocked / Approved again; approves a CS of his site up to the limit; (Phase 2) cancels a PO
  *   the Super Admin   – everything; approves any CS (above the limit only he); sets the limit (Settings)
  * Never his own: who made, last changed or sent a CS does not approve it. A person sees and works only on what is of his sites (an
  * enquiry's own site and the sites of its lines). */
@@ -57,12 +60,23 @@ async function rfqOf(s, no) {
 }
 const csOfRfq = async no => { const c = ((await db('GET', 'pur_cs?select=*&rfq_no=eq.' + Number(no))) || [])[0] || null; if (c) c.no = Number(c.no); return c; };
 const quotesOf = no => db('GET', 'pur_quote?select=vendor_id,vendor_name,lines,freight,loading,pay_terms,valid_till,remark,locked&rfq_no=eq.' + Number(no) + '&order=vendor_id.asc').then(r => r || []);
-/* the requirement lines in an open enquiry (or awarded: its CS approved) – a line is asked once */
+/* the requirement lines in an open enquiry (or awarded: its CS approved) – a line is asked once; (10-11-2026, Phase 2) a line of an
+ * award whose PO is made shows its PO; a cancelled PO frees its lines */
 async function takenNow() {
-  const [open, ok] = await Promise.all([all('pur_rfq?select=no,status,lines&status=' + encodeURIComponent(inList(OPEN)) + '&order=no.asc'), all('pur_cs?select=no,rfq_no,status&status=eq.Approved&order=no.asc')]);
-  const csOf = {}; ok.forEach(c => { csOf[c.rfq_no] = c; });
+  const [open, ok] = await Promise.all([all('pur_rfq?select=no,status,lines&status=' + encodeURIComponent(inList(OPEN)) + '&order=no.asc'), all('pur_cs?select=no,rfq_no,status,award&status=eq.Approved&order=no.asc')]);
+  const csOf = {}; ok.forEach(c => { c.no = Number(c.no); csOf[c.rfq_no] = c; });
   const closed = ok.length ? await all('pur_rfq?select=no,status,lines&status=eq.Closed&no=in.(' + ok.map(c => Number(c.rfq_no)).join(',') + ')&order=no.asc') : [];
-  return R.takenOf(open.concat(closed), csOf);
+  const pos = {}; (ok.length ? await poAll('&cs_no=in.(' + ok.map(c => c.no).join(',') + ')') : []).forEach(p => { (pos[p.cs_no] = pos[p.cs_no] || []).push(p); });
+  return R.takenOfPo(open.concat(closed), csOf, pos);
+}
+/* (10-11-2026) the POs (step 3) – before step 3 is run: none (Phase 1 works as before) */
+const POSEL = 'no,rev,site,cs_no,rfq_no,vendor_id,vendor,date,need_by,lines,freight,loading,taxable,gst,total,pay_terms,ship_to,site_contact,terms,remark,cs,status,status_note,cancelled_by,cancelled_name,cancelled_at,sent_rev,store_no,sent_at,send_error,send_tries,send_at,created_by,created_name,created_at,updated_by,updated_at,ver';
+const poNorm = p => Object.assign(p, { no: Number(p.no), rev: Number(p.rev || 1), cs_no: Number(p.cs_no), rfq_no: Number(p.rfq_no), vendor_id: Number(p.vendor_id), ver: Number(p.ver),
+  sent_rev: p.sent_rev === null || p.sent_rev === undefined ? null : Number(p.sent_rev), store_no: p.store_no === null || p.store_no === undefined ? null : Number(p.store_no),
+  freight: Number(p.freight) || 0, loading: Number(p.loading) || 0, taxable: Number(p.taxable) || 0, gst: Number(p.gst) || 0, total: Number(p.total) || 0, send_tries: Number(p.send_tries) || 0 });
+async function poAll(q, lim) {
+  try { return (lim ? (await db('GET', 'pur_po?select=' + POSEL + (q || '') + '&order=no.desc&limit=' + Number(lim))) || [] : await all('pur_po?select=' + POSEL + (q || '') + '&order=no.desc')).map(poNorm); }
+  catch (e) { if (e && e.code === 'notinstalled') return []; throw e; }
 }
 const rfqOut = r => ({ no: Number(r.no), ref: R.noOf(r.no), site: r.site, date: r.date, need_by: r.need_by, remark: r.remark || '', lines: r.lines || [], vendors: r.vendors || [], status: r.status,
   status_note: r.status_note || '', sent_by: r.sent_by || '', sent_at: r.sent_at, created_by: r.created_by, created_name: r.created_name, created_at: r.created_at, updated_at: r.updated_at, ver: Number(r.ver) });
@@ -153,7 +167,11 @@ const A = {
     const nos = rows.map(r => Number(r.no)), q = {}, c = {};
     if (nos.length) {
       ((await db('GET', 'pur_quote?select=rfq_no,vendor_id&rfq_no=in.(' + nos.join(',') + ')')) || []).forEach(y => { q[y.rfq_no] = (q[y.rfq_no] || 0) + 1; });
-      ((await db('GET', 'pur_cs?select=no,rfq_no,status,total&rfq_no=in.(' + nos.join(',') + ')')) || []).forEach(y => { c[y.rfq_no] = { no: Number(y.no), ref: R.csNoOf(y.no), status: y.status, total: Number(y.total) || 0 }; });
+      ((await db('GET', 'pur_cs?select=no,rfq_no,status,total&rfq_no=in.(' + nos.join(',') + ')')) || []).forEach(y => { c[y.rfq_no] = { no: Number(y.no), ref: R.csNoOf(y.no), status: y.status, total: Number(y.total) || 0, pos: [] }; });
+      // (10-11-2026, Phase 2) an approved CS: its POs (not cancelled)
+      const ap = Object.values(c).filter(y => y.status === 'Approved'), by = {}; ap.forEach(y => { by[y.no] = y; });
+      if (ap.length) (await poAll('&cs_no=in.(' + ap.map(y => y.no).join(',') + ')')).filter(p => p.status !== 'Cancelled').forEach(p => { if (by[p.cs_no]) by[p.cs_no].pos.push(R.poNoOf(p.no)); });
+      ap.forEach(y => y.pos.sort());
     }
     return { rfqs: rows.map(r => Object.assign(rfqOut(r), { lines: undefined, nlines: (r.lines || []).length, items: (r.lines || []).slice(0, 3).map(l => l.name).join(', ') + ((r.lines || []).length > 3 ? ' …' : ''),
       sites: rfqSites(r), quotes: q[r.no] || 0, cs: c[r.no] || null })) };
@@ -301,7 +319,7 @@ const A = {
     if (!cs) cs = await csOfRfq(r.no);
     const lim = (await limitOf()).limit;
     if (!cs) return { cs: null, rfq: rfqOut(r), limit: lim, quotes: (await quotesOf(r.no)).length };
-    return { cs: csView(cs, r, s, lim), rfq: rfqOut(r), limit: lim };
+    return Object.assign({ cs: csView(cs, r, s, lim), rfq: rfqOut(r), limit: lim }, cs.status === 'Approved' ? { po: await csPos(s, cs) } : {});
   },
   // the award (each line its supplier; why, when not L1) and the reason for fewer than 2 quotations – Draft / Sent back only
   async csSave(s, x) {
@@ -372,11 +390,172 @@ const A = {
     const out = c => { const r = rq[c.rfq_no], d = R.mayDecide(c, s); return { no: Number(c.no), ref: R.csNoOf(c.no), rfq_no: Number(c.rfq_no), rfq_ref: R.noOf(c.rfq_no), site: c.site, status: c.status, total: Number(c.total) || 0,
       gst: Number(c.gst) || 0, need: c.need, lines: (r.lines || []).length, items: (r.lines || []).slice(0, 3).map(l => l.name).join(', ') + ((r.lines || []).length > 3 ? ' …' : ''),
       created_name: c.created_name, sent_name: c.sent_name, sent_at: c.sent_at, decided_name: c.decided_name, decided_at: c.decided_at, version: Number(c.version), mayDecide: d.may, why: d.why }; };
-    if (!x.mine) return { list: seen.map(out) };
-    const list = seen.map(out);
+    // (10-11-2026, Phase 2) an approved CS: its POs (not cancelled)
+    const ap = seen.filter(c => c.status === 'Approved').map(c => Number(c.no)), pc = {};
+    if (ap.length) (await poAll('&cs_no=in.(' + ap.join(',') + ')')).filter(p => p.status !== 'Cancelled').forEach(p => { (pc[p.cs_no] = pc[p.cs_no] || []).push(R.poNoOf(p.no)); });
+    const out2 = c => Object.assign(out(c), { pos: (pc[Number(c.no)] || []).slice().sort() });
+    if (!x.mine) return { list: seen.map(out2) };
+    const list = seen.map(out2);
     return { list: list.filter(c => c.mayDecide), elsewhere: s.role === 'admin' ? list.filter(c => !c.mayDecide && c.need === 'admin' && c.site !== s.site && R.makersOf(seen.find(y => Number(y.no) === c.no)).indexOf(R.lower(s.email)) === -1) : [] };
   },
+
+  /* ---------- (10-11-2026) PURCHASE PHASE 2 – PURCHASE ORDERS: one a supplier × site of an approved CS (P2); approved by the CS's
+   * approval (G-6); the master here, its copy sent at once to the site's Store (D-2) – "Not yet at the site" when the Store does not
+   * take it (Send again: the same copy, never twice); the site's GRNs and the balance read from the Store; cancelled (a Purchase Admin /
+   * the Super Admin, why) only while no GRN is made at the site ---------- */
+  // the form of a new PO: its lines and money from the CS, what it starts with (his quotation's payment terms; the site's shipping
+  // address, contact and terms – as the site's Store has them for its papers)
+  async poNew(s, x) {
+    const { cs, r } = await csApproved(s, x.cs), vid = noOf(x.vendor), site = siteOf(s, x.site);
+    const was = await poFor(cs.no, vid, site);
+    if (was) throw fail(409, R.poNoOf(was.no) + ' is made already for this supplier and site' + (was.status === 'Cancelled' ? ' (Cancelled)' : '') + '.', 'made', { po: was.no });
+    const m = rule(() => R.poMoney(cs.sheet, cs.award, vid, site, {}));
+    const v = await vendorOf(vid);
+    let pp = null, perr = '';
+    try { pp = ((await link.po('papers', { sites: [site] })).sites || [])[0] || null; if (pp && pp.error) { perr = pp.error; pp = null; } } catch (e) { perr = e.message; }
+    const need = [r.need_by].concat(m.lines.map(l => (r.lines.find(y => Number(y.line) === l.cs_line) || {}).need_by)).filter(Boolean).sort()[0] || null, t = R.today();
+    return { cs: { no: cs.no, ref: R.csNoOf(cs.no), approved_name: cs.decided_name, approved_at: cs.decided_at }, rfq: { no: r.no, ref: R.noOf(r.no) }, site: site, site_name: (pp && pp.name) || site,
+      vendor: vendorOut(v), money: m, start: { date: t, need_by: need && need >= t ? need : null, pay_terms: m.pay_terms || '', ship_to: pp ? pp.start.ship_to || '' : '', site_contact: pp ? pp.start.site_contact || '' : '', terms: pp ? pp.start.terms || '' : '' },
+      papers_error: perr };
+  },
+  // a PO made (approved – G-6) and sent at once to the site's Store
+  async poMake(s, x) {
+    const { cs, r } = await csApproved(s, x.cs), vid = noOf(x.vendor), site = siteOf(s, x.site);
+    if (await poFor(cs.no, vid, site)) throw fail(409, 'The PO for this supplier and site is made already – it is loaded.', 'changed');
+    const head = rule(() => R.checkPoHead(x, { approved: R.dayIST(cs.decided_at) }));
+    const m = rule(() => R.poMoney(cs.sheet, cs.award, vid, site, x.gst));
+    if (m.missing.length) throw fail(400, 'Enter the GST % of ' + m.missing.map(n => 'line ' + n + ' (' + ((cs.sheet.lines || []).find(L => L.line === n) || {}).name + ')').join(', ') + ' – it is not in his quotation.', 'field', { missing: m.missing });
+    const v = await vendorOf(vid);
+    if (v.status === 'Blocked') throw fail(409, '"' + v.name + '" is Blocked (' + (v.status_note || 'a Purchase Admin blocked him') + ') – no PO is made to him. A Purchase Admin approves him again first (Suppliers).', 'blocked');
+    const n = Number(await db('POST', 'rpc/pur_next_no', { p_kind: 'PO' }));
+    if (!Number.isInteger(n) || n < 1) throw fail(500, 'No number could be given – try again.');
+    const row = Object.assign({ no: n, rev: 1, site: site, cs_no: cs.no, rfq_no: r.no, vendor_id: vid, vendor: { name: v.name, gstin: v.gstin || '', pan: v.pan || '', address: v.address || '', phone: v.phone || '', email: v.email || '' },
+      lines: m.lines, freight: m.freight, loading: m.loading, taxable: m.taxable, gst: m.gst, total: m.total, cs: { by: cs.decided_by || '', name: cs.decided_name || '', at: cs.decided_at || null },
+      status: 'Open', created_by: s.email, created_name: s.name, updated_by: s.email }, head);
+    try { await db('POST', 'pur_po', [row], 'return=minimal'); }
+    catch (e) { if (e && e.code === 'duplicate') throw fail(409, 'The PO for this supplier and site was made by someone else just now – it is loaded.', 'changed'); throw e; }
+    await activity(site, s.email, 'PO made', R.poNoOf(n), { cs: R.csNoOf(cs.no), vendor: v.name, site: site, lines: m.lines.length, total: m.total });
+    const sent = await sendPo(s, poNorm(Object.assign({}, row, { sent_rev: null, send_tries: 0, ver: 1 })), false);
+    return Object.assign({ saved: true, sent: sent.sent, send_error: sent.error }, await A.poGet(s, { no: n }));
+  },
+  // the POs of his sites – each with its state (the site's GRNs: partly received / received – read from the sites' Stores)
+  async poList(s, x) {
+    const rows = (await poAll('', 300)).filter(p => mayAll(s, [p.site])), st = await siteStates(rows.filter(p => p.status === 'Open' && p.sent_rev), false);
+    const list = rows.map(p => { const c = st.of(p); return { no: p.no, ref: R.poNoOf(p.no), rev: p.rev, site: p.site, date: p.date, need_by: p.need_by, vendor: p.vendor.name || '', vendor_id: p.vendor_id,
+      items: (p.lines || []).slice(0, 3).map(l => l.name).join(', ') + ((p.lines || []).length > 3 ? ' …' : ''), nlines: (p.lines || []).length, total: p.total, cs_no: p.cs_no, cs_ref: R.csNoOf(p.cs_no),
+      status: p.status, state: R.poState(p, c), store_no: p.store_no, grns: c ? c.grn_count : null, send_error: p.send_error || '' }; });
+    const want = String(x.state || '');
+    return { pos: want ? list.filter(p => p.state === want) : list, store: st.error ? { ok: false, error: st.error } : { ok: true } };
+  },
+  // one PO in full: its lines and money, its state, the site's copy – every GRN made against it and the balance (from the site's Store)
+  async poGet(s, x) {
+    const p = await poOf(s, noOf(x.no)), st = await siteStates([p], true);      // (also a PO not yet at the site: the site's heading for its paper)
+    const c = st.of(p), si = (st.sites || []).find(y => y.site === p.site) || {}, v = await vendorOf(p.vendor_id).catch(() => null);
+    const state = R.poState(p, c), received = !!c && (c.grn_count > 0 || (c.lines || []).some(l => Number(l.came) > 0));
+    return { po: Object.assign(poOut(p), { state: state, words: R.inWords(p.total), wa: R.waOf((p.vendor || {}).phone || (v && v.phone) || '') }),
+      site: c ? { no: c.no, ref: c.ref, status: c.status, state: c.state, lines: c.lines, grns: c.grns || [], grn_count: c.grn_count } : null, site_error: st.error || '',
+      heading: si.heading || null, site_name: si.name || p.site,
+      may: { send: p.status === 'Open' && (!p.sent_rev || p.sent_rev < p.rev), cancel: p.status === 'Open' && isAdmin(s) && !received } };
+  },
+  // Send again – a PO not yet at the site (the same copy: never twice)
+  async poSend(s, x) {
+    const p = await poOf(s, noOf(x.no));
+    if (p.status !== 'Open') throw fail(409, R.poNoOf(p.no) + ' is ' + p.status + ' – it is not sent.', 'state');
+    if (p.sent_rev && p.sent_rev >= p.rev) throw fail(409, R.poNoOf(p.no) + ' is at the site already (its PO ' + p.store_no + ').', 'state');
+    const sent = await sendPo(s, p, true);
+    return Object.assign({ saved: sent.sent, sent: sent.sent, send_error: sent.error }, await A.poGet(s, { no: p.no }));
+  },
+  // cancelled (why) – a Purchase Admin or the Super Admin – only while no GRN is made against it at the site: the site's copy first
+  async poCancel(s, x) {
+    if (!isAdmin(s)) throw fail(403, 'Only a Purchase Admin or the Super Admin cancels a PO.', 'access');
+    const p = await poOf(s, noOf(x.no));
+    if (p.status !== 'Open') throw fail(409, R.poNoOf(p.no) + ' is ' + p.status + ' already.', 'state');
+    const why = R.clean(x.why, 200); if (why.length < 3) throw fail(400, 'Write why it is cancelled.', 'field');
+    if (Number(x.ver) !== p.ver) throw fail(409, CHANGED, 'changed');
+    let r;
+    try { r = await link.po('cancel', { site: p.site, po: R.poCopy(p, s), why: why }); }
+    catch (e) {
+      // the site's Store has no step 10 (or no Store at that site): no copy can be there – it is cancelled here
+      if (e && (e.code === 'store_step10' || e.code === 'store_site')) r = { result: 'none', no: null };
+      else if (e && e.code === 'store_received') throw fail(409, R.poNoOf(p.no) + ' is not cancelled – ' + String(e.message).replace(/^The Store: /, ''), 'received', e.extra || null);
+      else if (e && /^store_/.test(String(e.code))) throw fail(409, R.poNoOf(p.no) + ' is not cancelled – ' + e.message, 'store');
+      else if (e && e.code === 'link') throw e;
+      else throw fail(503, 'The site\'s Store did not answer – nothing is cancelled (a GRN may be there): try again in a moment.', 'store');
+    }
+    const at = nowIso(), u = await db('PATCH', 'pur_po?no=eq.' + p.no + '&ver=eq.' + p.ver + '&status=eq.Open', { status: 'Cancelled', status_note: why, cancelled_by: s.email, cancelled_name: s.name, cancelled_at: at,
+      store_no: p.store_no || (r && r.no) || null, updated_by: s.email, updated_at: at, ver: p.ver + 1 }, 'return=representation');
+    if (!u || !u.length) throw fail(409, CHANGED, 'changed');
+    await activity(p.site, s.email, 'PO cancelled', R.poNoOf(p.no), { why: why, site: p.site, at_site: r ? r.result : '', store_no: (r && r.no) || null });
+    return Object.assign({ saved: true }, await A.poGet(s, { no: p.no }));
+  },
 };
+
+/* ---------- (10-11-2026) the PO's helpers ---------- */
+// an approved CS's POs: each supplier × site of its award – its PO (made) or "Make PO" (one of his sites); before step 3: step3 false
+async function csPos(s, cs) {
+  let pos = null;
+  try { pos = ((await db('GET', 'pur_po?select=' + POSEL + '&cs_no=eq.' + Number(cs.no) + '&order=no.asc')) || []).map(poNorm); }
+  catch (e) { if (!e || e.code !== 'notinstalled') throw e; }
+  return { step3: pos !== null, groups: R.poGroups(cs.sheet || {}, cs.award || {}).map(g => {
+    let m = null; try { m = R.poMoney(cs.sheet, cs.award, g.vendor, g.site, {}); } catch (e) { m = null; }
+    const p = (pos || []).find(y => y.vendor_id === g.vendor && y.site === g.site);
+    return { vendor: g.vendor, vendor_name: g.vendor_name, site: g.site, lines: g.lines.length, items: g.lines.slice(0, 3).map(L => L.name).join(', ') + (g.lines.length > 3 ? ' …' : ''),
+      total: m ? m.total : 0, missing: m ? m.missing.length : 0, po: p ? { no: p.no, ref: R.poNoOf(p.no), status: p.status, state: R.poState(p, null), total: p.total } : null, may: pos !== null && !p && mayAll(s, [g.site]) }; }) };
+}
+const STEP3 = 'Purchase\'s database step 3 is not run yet: the Super Admin runs sql/pur_step3_po.sql once in the rcl-purchase Supabase → SQL Editor. Until then no PO is made – the rest works as before.';
+// an approved CS (and its enquiry, of his sites) – POs come only from one
+async function csApproved(s, no) {
+  const cs = ((await db('GET', 'pur_cs?select=*&no=eq.' + noOf(no))) || [])[0];
+  if (!cs) throw gone(R.csNoOf(noOf(no)));
+  cs.no = Number(cs.no);
+  const r = await rfqOf(s, Number(cs.rfq_no));
+  if (cs.status !== 'Approved') throw fail(409, R.csNoOf(cs.no) + ' is ' + cs.status + ' – POs are made only from an approved CS.', 'state');
+  return { cs: cs, r: r };
+}
+// the site of a PO – one of his sites (the Super Admin: any)
+function siteOf(s, v) {
+  const site = String(v || '').toUpperCase();
+  if (!/^[A-Z0-9]{1,12}$/.test(site)) throw fail(400, 'Which site?', 'field');
+  if (!mayAll(s, [site])) throw fail(403, 'Site ' + site + ': you have no Purchase there.', 'access');
+  return site;
+}
+const poFor = async (cs, vid, site) => { const p = ((await db('GET', 'pur_po?select=no,status&cs_no=eq.' + Number(cs) + '&vendor_id=eq.' + Number(vid) + '&site=eq.' + encodeURIComponent(site))) || [])[0]; return p ? { no: Number(p.no), status: p.status } : null; };
+async function vendorOf(id) { const v = ((await db('GET', 'pur_vendors?select=' + VCOLS + '&id=eq.' + Number(id))) || [])[0]; if (!v) throw gone('This supplier'); return v; }
+async function poOf(s, no) {
+  const p = ((await db('GET', 'pur_po?select=' + POSEL + '&no=eq.' + no)) || [])[0];
+  if (!p) throw gone(R.poNoOf(no));
+  if (!mayAll(s, [p.site])) throw fail(403, R.poNoOf(no) + ' is of site ' + p.site + ' – you have no Purchase there.', 'access');
+  return poNorm(p);
+}
+const poOut = p => ({ no: p.no, ref: R.poNoOf(p.no), rev: p.rev, site: p.site, cs_no: p.cs_no, cs_ref: R.csNoOf(p.cs_no), rfq_no: p.rfq_no, rfq_ref: R.noOf(p.rfq_no), vendor_id: p.vendor_id, vendor: p.vendor || {},
+  date: p.date, need_by: p.need_by, lines: p.lines || [], freight: p.freight, loading: p.loading, taxable: p.taxable, gst: p.gst, total: p.total, pay_terms: p.pay_terms || '', ship_to: p.ship_to || '',
+  site_contact: p.site_contact || '', terms: p.terms || '', remark: p.remark || '', approved: p.cs || {}, status: p.status, status_note: p.status_note || '', cancelled_name: p.cancelled_name || '', cancelled_at: p.cancelled_at,
+  sent: { rev: p.sent_rev, at: p.sent_at, store_no: p.store_no, error: p.send_error || '', tries: p.send_tries, last: p.send_at }, created_name: p.created_name, created_at: p.created_at, ver: p.ver });
+/* the copy sent to the site's Store: taken (made / the same one again) – "At the site"; not – "Not yet at the site" with why (Send
+ * again). Each try written in pur_activity. → { sent, error } */
+async function sendPo(s, p, again) {
+  let r = null, error = '';
+  try { r = await link.po('put', { site: p.site, po: R.poCopy(p, s) }); }
+  catch (e) { error = String((e && e.message) || e).slice(0, 400); }
+  const at = nowIso(), ok = !!r && (r.result === 'made' || r.result === 'same');
+  if (r && !ok) error = r.result === 'cancelled' ? 'At the site this PO is Cancelled (its PO ' + r.no + ') – cancel it here too.' : r.result === 'older' ? 'The site has a later revision of it (' + r.rev + ').' : 'The Store did not take it (' + String(r.result) + ').';
+  const set = ok ? { sent_rev: p.rev, store_no: r.no, sent_at: at, send_error: '', send_tries: p.send_tries + 1, send_at: at } : { send_error: error, send_tries: p.send_tries + 1, send_at: at };
+  try { await db('PATCH', 'pur_po?no=eq.' + p.no, set, 'return=minimal'); }
+  catch (e) { error = error || 'Sent to the site, but not noted here (' + String((e && e.message) || e).slice(0, 120) + ') – press Send again (the same copy).'; return { sent: false, error: error }; }
+  await activity(p.site, s.email, ok ? (again ? 'PO sent again' : 'PO sent to the site') : 'PO not yet at the site', R.poNoOf(p.no), ok ? { site: p.site, store_no: r.no, result: r.result, ref: r.ref } : { site: p.site, error: error });
+  return { sent: ok, error: ok ? '' : error };
+}
+/* the copies as the sites' Stores have them (one signed question): { of(po) → the copy or null, error, sites } */
+async function siteStates(rows, full) {
+  const by = {}; rows.forEach(p => { (by[p.site] = by[p.site] || []).push(p.no); });
+  const q = Object.keys(by).sort().map(k => ({ site: k, nos: by[k] }));
+  if (!q.length) return { of: () => null, error: '', sites: [] };
+  let j;
+  try { j = await link.po('state', { q: q, full: !!full }); }
+  catch (e) { return { of: () => null, error: 'The sites\' Stores could not be read now (' + String((e && e.message) || e).slice(0, 160) + ') – the GRNs and the balance are not shown.', sites: [] }; }
+  const m = {}, errs = []; (j.sites || []).forEach(st => { if (st.error) errs.push(st.site + ': ' + st.error); (st.pos || []).forEach(c => { m[st.site + ':' + c.pur_no] = c; }); });
+  return { of: p => m[p.site + ':' + p.no] || null, error: errs.join(' · '), sites: j.sites || [] };
+}
 
 module.exports = handler(async (req, res) => {
   if (req.method !== 'POST') return send(res, 405, { error: 'POST only.' });
@@ -384,7 +563,7 @@ module.exports = handler(async (req, res) => {
   const s = await ses.need(req), x = await readBody(req), a = String(x.action || '');
   if (!Object.prototype.hasOwnProperty.call(A, a)) return send(res, 404, { error: 'Unknown action.', code: 'action' });
   try { send(res, 200, Object.assign({ ok: true }, await A[a](s, x || {}))); }
-  catch (e) { if (e && e.code === 'notinstalled') throw fail(500, STEP2, 'step2'); throw e; }
+  catch (e) { if (e && e.code === 'notinstalled') throw /^po[A-Z]/.test(a) ? fail(500, STEP3, 'step3') : fail(500, STEP2, 'step2'); throw e; }
 });
 module.exports.A = A;      // (for the unit test)
 module.exports.csView = csView;
